@@ -4,7 +4,7 @@ import chalk from "chalk";
 
 const shell = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
 
-console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "Standard" })));
+console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
 const ptyProcess = pty.spawn(shell, [], {
   name: "xterm-color",
@@ -18,7 +18,16 @@ ptyProcess.onData((data: string) => {
   process.stdout.write(data);
 });
 
+process.stdin.setRawMode(true);
+process.stdin.resume();
+process.stdin.setEncoding("utf8");
+
+process.stdin.on("data", (data: string) => {
+  ptyProcess.write(data);
+});
+
 ptyProcess.onExit(({ exitCode }) => {
+  process.stdin.setRawMode(false);
   console.log(chalk.yellow(`\n[myna] shell exited with code ${exitCode}`));
   process.exit(exitCode);
 });
