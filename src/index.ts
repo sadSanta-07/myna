@@ -6,13 +6,23 @@ const shell = process.platform === "win32" ? "powershell.exe" : process.env.SHEL
 
 console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
-const ptyProcess = pty.spawn(shell, [], {
-  name: "xterm-color",
-  cols: process.stdout.columns || 80,
-  rows: process.stdout.rows || 24,
-  cwd: process.cwd(),
-  env: process.env as { [key: string]: string },
-});
+let ptyProcess: pty.IPty;
+try {
+  ptyProcess = pty.spawn(shell, [], {
+    name: "xterm-color",
+    cols: process.stdout.columns || 80,
+    rows: process.stdout.rows || 24,
+    cwd: process.cwd(),
+    env: process.env as { [key: string]: string },
+  });
+} catch (err) {
+  console.error(
+    chalk.red(
+      `[myna] failed to spawn shell : ${(err as Error).message}`
+    )
+  );
+  process.exit(1);
+}
 
 ptyProcess.onData((data: string) => {
   process.stdout.write(data);
@@ -25,6 +35,34 @@ process.stdin.setEncoding("utf8");
 process.stdin.on("data", (data: string) => {
   ptyProcess.write(data);
 });
+
+process.stdout.on("resize", () => {
+  const cols = process.stdout.columns;
+  const rows = process.stdout.rows;
+  if (!cols || !rows) return;
+
+  try {
+    ptyProcess.resize(cols, rows);
+  } catch (err) {
+    // race with exit -safe to ignore
+  }
+});
+
+let shuttingDown = false;
+
+function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  process.stdin.setRawMode(false);
+  ptyProcess.kill();
+
+  process.exit(0);
+
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 ptyProcess.onExit(({ exitCode }) => {
   process.stdin.setRawMode(false);
