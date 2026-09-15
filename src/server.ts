@@ -34,6 +34,24 @@ wss.on("connection", (socket) => {
             socket.send(JSON.stringify({ type: "room-created", code }));
             console.log(`[signaling] room created ${code}`);
         }
+        if (msg.type === "join-room") {
+            const room = rooms.get(msg.code);
+
+            if (!room) {
+                socket.send(JSON.stringify({ type: "error", message: "room not found" }));
+                return;
+            }
+            if (room.peer) {
+                socket.send(JSON.stringify({ type: "error", message: "room  already full" }));
+                return;
+            }
+
+            room.peer = socket;
+            socket.send(JSON.stringify({ type: "joined", code: msg.code }));
+            room.host.send(JSON.stringify({ type: "peer-joined", code: msg.code }));
+            console.log(`[signaling] peer joined room: ${msg.code}`);
+            return;
+        }
     });
 
     socket.on("close", () => {
