@@ -11,6 +11,7 @@ interface Room {
 }
 
 const rooms = new Map<string, Room>();
+const socketToRoom = new Map<WebSocket, string>();
 
 function generateRoomCode(): string {
     return randomBytes(4).toString("hex");
@@ -31,6 +32,7 @@ wss.on("connection", (socket) => {
         if (msg.type === "create-room") {
             const code = generateRoomCode();
             rooms.set(code, { host: socket, peer: null });
+            socketToRoom.set(socket, code);
             socket.send(JSON.stringify({ type: "room-created", code }));
             console.log(`[signaling] room created ${code}`);
         }
@@ -47,15 +49,56 @@ wss.on("connection", (socket) => {
             }
 
             room.peer = socket;
+            socketToRoom.set(socket, msg.code);
             socket.send(JSON.stringify({ type: "joined", code: msg.code }));
             room.host.send(JSON.stringify({ type: "peer-joined", code: msg.code }));
             console.log(`[signaling] peer joined room: ${msg.code}`);
             return;
         }
+
+        //sdp-offer , sdp-answer , ice-cand etc... gets relayed
+        const code = socketToRoom.get(socket);
+        if (!code) {
+            socket.send(JSON.stringify({ type: "error", message: "not in a room" }));
+            return;
+        }
+
+        const room = rooms.get(code);
+        if (!room) return;
+
+        const other = room.host === socket ? room.peer : room.host;
+        if (!other) {
+            socket.send(JSON.stringify({ type: "error", message: "peer not connected yet" }))
+            return;
+        }
+
+        other.send(raw.toString());
     });
 
     socket.on("close", () => {
         console.log("[signaling] client disconnected");
+        const code = socketToRoom.get(socket);
+        if (!code) return; // was never in a room (e.g. connected but never sent create/join)
+
+        const room = rooms.get(code);
+        socketToRoom.delete(socket);
+
+        if (!room) return;
+
+        if (room.host === socket) {
+            // host left — room  dead
+            if (room.peer) {
+                room.peer.send(JSON.stringify({ type: "host-left", code }));
+                socketToRoom.delete(room.peer);
+            }
+            rooms.delete(code);
+            console.log(`[signaling] room ${code} closed (host left)`);
+        } else if (room.peer === socket) {
+            // peer left — room survives
+            room.peer = null;
+            room.host.send(JSON.stringify({ type: "peer-left", code }));
+            console.log(`[signaling] peer left room ${code}, room still open`);
+        }
     });
 });
 
