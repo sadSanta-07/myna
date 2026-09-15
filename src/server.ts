@@ -35,6 +35,7 @@ wss.on("connection", (socket) => {
             socketToRoom.set(socket, code);
             socket.send(JSON.stringify({ type: "room-created", code }));
             console.log(`[signaling] room created ${code}`);
+            return;
         }
         if (msg.type === "join-room") {
             const room = rooms.get(msg.code);
@@ -68,7 +69,8 @@ wss.on("connection", (socket) => {
 
         const other = room.host === socket ? room.peer : room.host;
         if (!other) {
-            socket.send(JSON.stringify({ type: "error", message: "peer not connected yet" }))
+            console.log("[signaling] unrelayable message:", msg);
+            socket.send(JSON.stringify({ type: "error", message: "peer not connected yet" }));
             return;
         }
 
