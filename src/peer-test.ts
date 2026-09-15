@@ -8,7 +8,7 @@ if (!roomCode) {
 }
 
 const ws = new WebSocket("ws://localhost:8080");
-const pc = createPeerConnection();
+const pc = createPeerConnection("peer");
 
 pc.ondatachannel = (event) => {
   const dc = event.channel;

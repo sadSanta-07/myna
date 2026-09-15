@@ -2,10 +2,14 @@ import WebSocket from "ws";
 import { createPeerConnection } from "./peer.js";
 
 const ws = new WebSocket("ws://localhost:8080");
-const pc = createPeerConnection();
+const pc = createPeerConnection("host");
 const dc = pc.createDataChannel("terminal");
 
-dc.onopen = () => console.log("[host] data channel open");
+dc.onopen = () => {
+  console.log("[host] data channel open");
+  dc.send("hello from host");
+  console.log("[host] sent: hello from host");
+};
 dc.onmessage = (event) => console.log("[host] data channel message:", event.data);
 
 let remoteDescSet = false;
