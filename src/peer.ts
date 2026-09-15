@@ -7,13 +7,12 @@ export function createPeerConnection(): RTCPeerConnection {
     });
 
     pc.oniceconnectionstatechange = () => {
-        console.log("[peer] ICE connection state: ", pc.iceConnectionState);
+        console.log("[peer] ICE connection state:", pc.iceConnectionState);
     };
 
     pc.onconnectionstatechange = () => {
-        console.log("[peer] connection state :", pc.connectionState);
+        console.log("[peer] connection state:", pc.connectionState);
     };
 
     return pc;
-
 }
