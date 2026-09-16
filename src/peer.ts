@@ -1,5 +1,8 @@
+import wrtc from "@roamhq/wrtc";
 import dotenv from "dotenv";
 dotenv.config();
+
+const { RTCPeerConnection } = wrtc;
 
 export function createPeerConnection(label: string): RTCPeerConnection {
   const pc = new RTCPeerConnection({
