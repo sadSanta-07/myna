@@ -7,7 +7,7 @@ if (!roomCode) {
   process.exit(1);
 }
 
-const ws = new WebSocket("ws://localhost:8080");
+const ws = new WebSocket("ws://172.16.0.2:8080");
 const pc = createPeerConnection("peer");
 
 pc.ondatachannel = (event) => {
