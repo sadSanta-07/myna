@@ -21,6 +21,7 @@ const pendingCandidates: any[] = [];
 
 pc.onicecandidate = (event) => {
   if (event.candidate) {
+    console.log(`[local] candidate type: ${event.candidate.type}`);
     ws.send(JSON.stringify({ type: "ice-candidate", candidate: event.candidate }));
   }
 };
