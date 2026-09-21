@@ -7,9 +7,24 @@ const { RTCPeerConnection } = wrtc;
 export function createPeerConnection(label: string): RTCPeerConnection {
   const pc = new RTCPeerConnection({
     iceServers: [
-      { urls: ["stun:stun.l.google.com:19302"] },
+      { urls: "stun:stun.relay.metered.ca:80" },
       {
-        urls: process.env.TURN_URL!,
+        urls: "turn:global.relay.metered.ca:80",
+        username: process.env.TURN_USERNAME!,
+        credential: process.env.TURN_CREDENTIAL!,
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        username: process.env.TURN_USERNAME!,
+        credential: process.env.TURN_CREDENTIAL!,
+      },
+      {
+        urls: "turn:global.relay.metered.ca:443",
+        username: process.env.TURN_USERNAME!,
+        credential: process.env.TURN_CREDENTIAL!,
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
         username: process.env.TURN_USERNAME!,
         credential: process.env.TURN_CREDENTIAL!,
       },
