@@ -1,19 +1,38 @@
 import WebSocket from "ws";
 import { createPeerConnection } from "./peer.js";
+import { createSession } from "./session.js";
 
 const ws = new WebSocket("ws://localhost:8080");
 const pc = createPeerConnection("host");
-const dc = pc.createDataChannel("terminal");
-
-dc.onopen = () => {
-  console.log("[host] data channel open");
-  dc.send("hello from host");
-  console.log("[host] sent: hello from host");
-};
-dc.onmessage = (event) => console.log("[host] data channel message:", event.data);
+const session = createSession();
 
 let remoteDescSet = false;
 const pendingCandidates: any[] = [];
+
+let dc: RTCDataChannel;
+let channelOpen = false;
+const outputBuffer: string[] = [];
+
+session.onData((data: string) => {
+  if (channelOpen) {
+    dc.send(data);
+  } else {
+    outputBuffer.push(data);
+  }
+});
+
+dc = pc.createDataChannel("terminal");
+
+dc.onopen = () => {
+  console.log("[host] data channel open");
+  channelOpen = true;
+  for (const chunk of outputBuffer) {
+    dc.send(chunk);
+  }
+  outputBuffer.length = 0;
+};
+
+dc.onmessage = (event) => console.log("[host] data channel message:", event.data);
 
 pc.onicecandidate = (event) => {
   if (event.candidate) {
@@ -42,7 +61,6 @@ ws.on("message", async (raw) => {
     await pc.setRemoteDescription(msg.sdp);
     remoteDescSet = true;
     console.log("[host] set remote description (answer)");
-
     for (const candidate of pendingCandidates) {
       await pc.addIceCandidate(candidate);
     }
@@ -57,3 +75,7 @@ ws.on("message", async (raw) => {
     }
   }
 });
+
+setTimeout(() => {
+  session.write("echo hello-from-pty-over-datachannel\r\n");
+}, 1000);
