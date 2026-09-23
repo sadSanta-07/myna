@@ -33,7 +33,21 @@ dc.onopen = () => {
 };
 
 dc.onmessage = (event) => {
-  session.write(event.data);
+  const data = event.data;
+
+  if (typeof data === "string" && data.startsWith("{")) {
+    try {
+      const msg = JSON.parse(data);
+      if (msg.type === "resize") {
+        session.resize(msg.cols, msg.rows);
+        return;
+      }
+    } catch {
+      // not valid JSON — fallbaxk
+    }
+  }
+
+  session.write(data);
 };
 
 pc.onicecandidate = (event) => {
@@ -77,7 +91,3 @@ ws.on("message", async (raw) => {
     }
   }
 });
-
-setTimeout(() => {
-  session.write("echo hello-from-pty-over-datachannel\r\n");
-}, 1000);
