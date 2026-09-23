@@ -32,7 +32,9 @@ dc.onopen = () => {
   outputBuffer.length = 0;
 };
 
-dc.onmessage = (event) => console.log("[host] data channel message:", event.data);
+dc.onmessage = (event) => {
+  session.write(event.data);
+};
 
 pc.onicecandidate = (event) => {
   if (event.candidate) {

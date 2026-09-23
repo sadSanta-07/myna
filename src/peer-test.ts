@@ -12,8 +12,20 @@ const pc = createPeerConnection("peer");
 
 pc.ondatachannel = (event) => {
   const dc = event.channel;
-  dc.onopen = () => console.log("[peer] data channel open");
-  dc.onmessage = (message) => console.log("[peer] data channel message:", message.data);
+
+  dc.onopen = () => {
+    console.error("[peer] data channel open");
+
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+
+    process.stdin.on("data", (data: string) => {
+      dc.send(data);
+    });
+  };
+
+  dc.onmessage = (message) => process.stdout.write(message.data);
 };
 
 let remoteDescSet = false;
