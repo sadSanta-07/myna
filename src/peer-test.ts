@@ -23,6 +23,14 @@ pc.ondatachannel = (event) => {
     process.stdin.on("data", (data: string) => {
       dc.send(data);
     });
+
+    process.stdout.on("resize", () => {
+      const cols = process.stdout.columns;
+      const rows = process.stdout.rows;
+      if (!cols || !rows) return;
+
+      dc.send(JSON.stringify({ type: "resize", cols, rows }));
+    });
   };
 
   dc.onmessage = (message) => process.stdout.write(message.data);
