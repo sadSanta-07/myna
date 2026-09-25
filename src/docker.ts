@@ -2,6 +2,8 @@ import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
 import * as tar from "tar-fs";
+import { Session } from "./session-types.js";
+
 
 const docker = new Docker();
 
@@ -55,6 +57,46 @@ export async function attachToContainer(container: Docker.Container) {
   });
 
   return stream;
+}
+
+export async function createDockerSession(imageTag: string): Promise<Session> {
+  const container = await startContainer(imageTag);
+  const stream = await attachToContainer(container);
+
+  const dataCallbacks: ((data: string) => void)[] = [];
+  const exitCallbacks: ((info: { exitCode: number }) => void)[] = [];
+
+  stream.on("data", (chunk: Buffer) => {
+    const text = chunk.toString("utf8");
+    for (const cb of dataCallbacks) cb(text);
+  });
+
+  stream.on("end", async () => {
+    let exitCode = 0;
+    try {
+      const info = await container.wait();
+      exitCode = info.StatusCode ?? 0;
+    } catch {
+      // container already gone
+    }
+    for (const cb of exitCallbacks) cb({ exitCode });
+  });
+
+  stream.write("\n");
+
+  return {
+    onData: (callback) => dataCallbacks.push(callback),
+    write: (data) => stream.write(data),
+    resize: (cols, rows) => container.resize({ h: rows, w: cols }).catch(() => { }),
+    kill: async () => {
+      try {
+        await container.remove({ force: true });
+      } catch {
+        //ignore
+      }
+    },
+    onExit: (callback) => exitCallbacks.push(callback),
+  };
 }
 
 export { docker };  

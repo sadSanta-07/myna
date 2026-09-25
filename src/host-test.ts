@@ -1,10 +1,9 @@
 import WebSocket from "ws";
 import { createPeerConnection } from "./peer.js";
-import { createSession } from "./session.js";
-
+import { createDockerSession } from "./docker.js";
+const session = await createDockerSession("myna-test:latest");
 const ws = new WebSocket("ws://localhost:8080");
 const pc = createPeerConnection("host");
-const session = createSession();
 
 let remoteDescSet = false;
 const pendingCandidates: any[] = [];
