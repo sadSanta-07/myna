@@ -1,17 +1,12 @@
-import { compose } from "node:stream";
-import { listcontainer } from "./docker.js";
+import { listContainers, buildImage } from "./docker.js";
 
 async function main() {
-    try {
-        const containers = await listcontainer();
-        console.log(`[docker] connected - found ${containers.length} container(s)`);
-        for (const c of containers) {
-            console.log(` - ${c.Names.join(",")} (${c.Image}) [${c.State}]`);
+  console.log("[docker] building image...");
+  await buildImage("myna-test:latest");
+  console.log("[docker] build complete");
 
-        }
-    } catch (err) {
-        console.error("[docker] connection failed: ", err);
-    }
+  const containers = await listContainers();
+  console.log(`[docker] found ${containers.length} container(s) (image not yet run, just built)`);
 }
 
-main();
+main().catch((err) => console.error("[docker] error:", err));
