@@ -6,11 +6,11 @@ This roadmap tracks what's built and verified, what's in progress, and what's pl
 
 ---
 
-## Phase 1 — Core PTY + WebRTC Sharing Loop
+## Phase 1 — Core PTY + WebRTC Sharing Loop - Done
 
 **Goal:** two people, one sharing a live local shell with the other over a direct WebRTC connection, no cloud relay carrying the actual terminal data (TURN relay as a fallback path only, when direct/STUN connectivity isn't possible).
 
-### Week 1 — PTY basics ✅ Done
+### Week 1 — PTY basics - Done
 - Spawn a local shell inside a PTY (`node-pty`)
 - Wire stdin into the PTY in raw mode
 - Handle terminal resize (`SIGWINCH` → `pty.resize()`)
@@ -18,36 +18,46 @@ This roadmap tracks what's built and verified, what's in progress, and what's pl
 - Integration tests (`node:test`) covering spawn, write/read round-trip, resize, kill
 - **Known platform note:** required `useConpty: false` to work around a ConPTY/Node v24 compatibility issue on Windows. Revisit if Node or node-pty versions change.
 
-### Week 2 — Signaling server ✅ Done
+### Week 2 — Signaling server - Done
 - Bare `ws` WebSocket server
 - Room creation with short codes
 - Peer pairing by room code, with "room not found" / "room already full" guards
 - Generic message relay between paired peers (server never inspects payload contents — SDP/ICE/app data all pass through as opaque JSON)
 - Disconnect cleanup: host leaving closes the room and notifies the peer; peer leaving notifies the host and leaves the room open for a new peer
 
-### Week 3 — WebRTC handshake ✅ Done
+### Week 3 — WebRTC handshake Done
 - `RTCPeerConnection` scaffolding on both sides (`@roamhq/wrtc`, Node-only for Phase 1)
 - SDP offer/answer exchange through the signaling server
 - ICE candidate exchange (with early-candidate queueing to handle race conditions against `setRemoteDescription`)
 - DataChannel opened, real application data sent and received across it
-- **Verified across genuinely separate networks** (home laptop ↔ GitHub Codespaces VM, via an ngrok-tunneled signaling server): confirmed the connection depends on TURN relay in the presence of symmetric NAT — plain STUN alone was tested and confirmed insufficient in this real-world case, not just a theoretical caveat. TURN credentials (Metered.ca) added as a fallback in `iceServers`, alongside STUN.
+- **Verified across genuinely separate networks** (home laptop <-> GitHub Codespaces VM, via an ngrok-tunneled signaling server): confirmed the connection depends on TURN relay in the presence of symmetric NAT — plain STUN alone was tested and confirmed insufficient in this real-world case, not just a theoretical caveat. TURN credentials (Metered.ca) added as a fallback in `iceServers`, alongside STUN.
 - TURN credentials are handled via environment variables (`.env`, gitignored), not committed to source
 
-### Week 4 — Wire it together (Phase 1 completion) 🔧 In progress
-- [ ] Replace hardcoded test messages with real PTY output streamed over the DataChannel
-- [ ] Peer's incoming DataChannel messages rendered into their local terminal
-- [ ] Peer's keystrokes sent back over the channel to the host's PTY
-- [ ] Terminal resize propagated across the connection
-- [ ] Demo recording + Phase 1 README section
+### Week 4 — Wire it together - Done
+- Real PTY output streamed over the DataChannel (with buffering for output produced before the channel opens)
+- Peer's incoming DataChannel messages rendered raw into their local terminal
+- Peer's keystrokes sent back over the channel and executed on the host's PTY
+- Terminal resize propagated across the connection, keeping both sides in sync
+- **Verified end to end, cross-network:** a peer in a separate environment typing real commands (`dir`, `whoami`, `ls`) that executed on the host's actual machine and rendered correctly, including formatted output
 
-**Honest scope note for Phase 1:** once Week 4 is complete, "sharing your terminal" means giving the connected peer direct command execution on the *host's actual machine* — there is no sandbox yet. This is fine for controlled testing between two trusted parties, but it is not safe to present as a general-purpose sharing tool until Phase 2 lands.
+**Historical note:** at the end of Phase 1, before Phase 2 landed, sharing a terminal meant giving the connected peer direct command execution on the *host's actual machine* — confirmed in testing (`whoami` returned the host's real Windows identity). This was flagged plainly rather than glossed over, and is what Phase 2 exists to fix.
 
 ---
 
-## Phase 2 — Containerization
-- Spawn the PTY inside a Docker container instead of the host shell (`dockerode`)
-- This is a security requirement, not an optional feature — it's what makes sharing defensible beyond "test with a trusted friend"
-- `envshare up` builds/reuses an image from a Dockerfile or docker-compose.yml in the project directory
+## Phase 2 — Containerization - Done
+
+**Goal:** the shared shell runs inside an isolated Docker container instead of directly on the host — the security requirement that makes this safe to use beyond a fully trusted pair.
+
+- `dockerode` wired up to the local Docker daemon
+- Image build flow: detects a `Dockerfile` in the project directory, builds (or reuses a cached build)
+- PTY-equivalent shell spawned *inside* a running container via Docker's attach API, with the same raw-mode stdin/stdout piping pattern as the local PTY path
+- A shared `Session` interface (`onData`, `write`, `resize`, `kill`, `onExit`) that both the local PTY session and the containerized session implement identically — everything above this layer (signaling, WebRTC, DataChannel piping) doesn't know or care which one it's talking to
+- Container resize wired to Docker's real `container.resize()` API (not simulated)
+- **Verified end to end, cross-network, containerized:** re-ran the exact same host<->peer test as Phase 1's Week 4, this time backed by a container. `whoami` now correctly returns `root` (the container's identity) and `ls`/`pwd` show the container's bare filesystem — not the host's real project directory. Same test, deliberately different and now-correct result.
+
+**Current scope note:** `host-test.ts` currently runs the containerized path by default, requiring Docker Desktop to be running locally. The local (non-containerized) session path still exists in the codebase (`createLocalSession` in `session.ts`) but isn't currently wired into the CLI test scripts — worth revisiting whether both modes should be user-selectable once a real CLI exists.
+
+---
 
 ## Phase 3 — Reproducibility hashing + CI
 - Content-hash built image layers
@@ -74,10 +84,10 @@ This roadmap tracks what's built and verified, what's in progress, and what's pl
 - CONTRIBUTING.md, issue templates
 - This roadmap kept current as phases complete
 - Semantic versioning
-- Explicit security section stating which phase adds the sandbox, so nobody mistakes an early build for something safe to expose broadly
+- Explicit security section stating which phase adds the sandbox, so nobody mistakes an early build for something safe to expose broadly (now largely satisfied by Phase 2, but formalize it in the README's structure)
 
 ---
 
 ## Sequencing notes
 
-Phases 4–7 are intentionally *planned*, not built, until Phases 1–3 are solid. Scope creep across phases before the core loop and the security sandbox are done is the most likely way this stalls — sequence, don't parallelize.
+Phases 4–7 are intentionally *planned*, not built, until Phase 3 is solid. Scope creep before the core loop, the security sandbox, and reproducibility are done is the most likely way this stalls — sequence, don't parallelize.
