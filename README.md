@@ -4,9 +4,9 @@
 
 Think of it as screen sharing, but for a terminal: the peer gets real keystroke-level access to a shell, reached over a connection that punches through NAT the way a video call does, not the way SSH does.
 
-## Status: Phase 2 (containerized sharing)
+## Status: Phase 3 (containerized, reproducible sharing)
 
-The core sharing loop is built and verified, now backed by an isolated container rather than the host shell directly:
+The core sharing loop is built and verified, backed by an isolated, reproducible container:
 
 - A real PTY-equivalent shell, spawned **inside a Docker container** (via `dockerode`), not on the host machine
 - A shared `Session` interface so the same signaling/WebRTC/DataChannel code works identically whether the session is local or containerized
@@ -17,10 +17,11 @@ The core sharing loop is built and verified, now backed by an isolated container
 - Terminal resize synced across the connection, using Docker's real container resize API
 - **Verified across genuinely separate networks** — tested between a home network and a cloud VM, including the symmetric-NAT case where direct/STUN-only connectivity fails and a TURN relay is required. TURN is configured as a fallback in `iceServers`, not the primary path.
 - **Verified isolated:** running `whoami`/`ls` from the peer's side returns the container's identity (`root`) and the container's bare filesystem — not the host machine's real user or project directory.
+- **Verified reproducible:** the Dockerfile's build output is content-hashed (filesystem layers, not the top-level image ID — which was tested and found to include non-deterministic build metadata) and checked against a committed `myna.lock` file. Confirmed byte-identical across a local machine, a separate cloud VM, and GitHub Actions' own clean-room runners. CI fails the build if a change drifts from the locked hash without updating it — this was deliberately tested with a real failing run, not assumed.
 
 ### Scope note
 
-There's no unified CLI yet — the containerized session is what `host-test.ts` runs by default, but there's no host-approval flow, no viewer-vs-control distinction, and no multi-peer support yet (one host, one peer, full access once connected). See `ROADMAP.md` for what's planned next.
+There's no unified CLI yet, and connecting currently still requires Node.js and `npm install` on the peer's side — the "no setup to connect" goal isn't solved yet, that's what a browser-based client (planned next) is for. There's also no host-approval flow, no viewer-vs-control distinction, and no multi-peer support yet (one host, one peer, full access once connected). See `ROADMAP.md` for what's planned next.
 
 ## Running it today
 
@@ -56,6 +57,15 @@ and point `peer-test.ts`'s WebSocket URL at the resulting public `wss://` addres
 
 Cross-network connectivity relies on a TURN server as a fallback for NAT configurations that STUN alone can't traverse. Copy `.env.example` to `.env` and fill in your own TURN credentials (e.g. from [Metered](https://www.metered.ca)) — `.env` is gitignored and never committed.
 
+### Reproducibility verification
+
+```
+npx tsx src/lock-test.ts write    # pin the current build's hash into myna.lock
+npx tsx src/lock-test.ts verify   # check a build against the pinned hash
+```
+
+CI runs `verify` automatically on every push to `main` (`.github/workflows/reproducibility.yml`).
+
 ## What's next
 
-See `ROADMAP.md` for the full phase breakdown — reproducible build hashing, a multi-peer permission model, and a browser-based peer client so joining doesn't require installing anything.
+See `ROADMAP.md` for the full phase breakdown — a multi-peer permission model, and a browser-based peer client so joining doesn't require installing anything, which is the actual next step toward the project's original "no setup needed" goal.
