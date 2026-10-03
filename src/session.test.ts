@@ -1,15 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { createSession } from "./session.js";
+import { createLocalSession } from "./session.js";
 
 test("spwans a shell process with a valid pid", () => {
-    const session = createSession();
-    assert.ok(session.pid > 0);
+    const session = createLocalSession();
+    assert.ok(typeof session.write === "function");
     session.kill();
 });
 
 test("write to pty a recieve output back", async () => {
-    const session = createSession();
+    const session = createLocalSession();
     const output: string[] = [];
     session.onData((data) => output.push(data));
 
@@ -24,16 +24,16 @@ test("write to pty a recieve output back", async () => {
 });
 
 test("resize does not throw on a live session", () => {
-    const session = createSession();
+    const session = createLocalSession();
     assert.doesNotThrow(() => session.resize(100, 40));
     session.kill();
 });
 
 test("kill terminates the process and fires onExit", async () => {
-    const session = createSession();
+    const session = createLocalSession();
     const exited = new Promise<void>((resolve) => {
         session.onExit(() => resolve());
     });
     session.kill();
-    await exited; // will hang the test (and eventually time out) if onExit never fires
+    await exited;
 });

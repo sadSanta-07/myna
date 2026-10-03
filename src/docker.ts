@@ -4,7 +4,6 @@ import * as path from "path";
 import * as tar from "tar-fs";
 import { Session } from "./session-types.js";
 
-
 const docker = new Docker();
 
 export async function listContainers() {
@@ -12,7 +11,10 @@ export async function listContainers() {
   return containers;
 }
 
-export async function buildImage(imageTag: string, dockerfileDir: string = process.cwd()): Promise<void> {
+export async function buildImage(
+  imageTag: string,
+  dockerfileDir: string = process.cwd()
+): Promise<void> {
   const dockerfilePath = path.join(dockerfileDir, "Dockerfile");
 
   if (!fs.existsSync(dockerfilePath)) {
@@ -21,12 +23,14 @@ export async function buildImage(imageTag: string, dockerfileDir: string = proce
 
   const tarStream = tar.pack(dockerfileDir);
 
-  const stream = await docker.buildImage(tarStream, { t: imageTag });
+  const stream = await docker.buildImage(tarStream as unknown as NodeJS.ReadableStream, {
+    t: imageTag,
+  } as Docker.ImageBuildOptions);
 
   return new Promise((resolve, reject) => {
     docker.modem.followProgress(
       stream,
-      (err, res) => (err ? reject(err) : resolve()),
+      (err) => (err ? reject(err) : resolve()),
       (event) => {
         if (event.stream) process.stdout.write(event.stream);
       }
@@ -99,4 +103,12 @@ export async function createDockerSession(imageTag: string): Promise<Session> {
   };
 }
 
-export { docker };  
+export async function getImageHash(imageTag: string): Promise<string> {
+  const image = docker.getImage(imageTag);
+  const info = await image.inspect();
+  // RootFS.Layers reflects actual filesystem content, not build-time metadata
+  // (timestamps, provenance, SBOM attestations) that the top-level image ID includes
+  return info.RootFS.Layers.join(",");
+}
+
+export { docker };
