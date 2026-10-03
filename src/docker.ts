@@ -106,9 +106,38 @@ export async function createDockerSession(imageTag: string): Promise<Session> {
 export async function getImageHash(imageTag: string): Promise<string> {
   const image = docker.getImage(imageTag);
   const info = await image.inspect();
-  // RootFS.Layers reflects actual filesystem content, not build-time metadata
-  // (timestamps, provenance, SBOM attestations) that the top-level image ID includes
+
+  if (!info.RootFS?.Layers) {
+    throw new Error(`Could not read RootFS.Layers for image ${imageTag} — unexpected image inspect result`);
+  }
+
   return info.RootFS.Layers.join(",");
+}
+
+export async function verifyImageHash(imageTag: string, expectedHash: string): Promise<boolean> {
+  const actualHash = await getImageHash(imageTag);
+  if (actualHash !== expectedHash) {
+    console.warn(`[docker] WARNING: build hash mismatch.`);
+    console.warn(`  expected: ${expectedHash}`);
+    console.warn(`  actual:   ${actualHash}`);
+    return false;
+  }
+  console.log(`[docker] build hash verified: ${actualHash}`);
+  return true;
+}
+
+export async function writeLockFile(imageTag: string, lockPath: string = "myna.lock") {
+  const hash = await getImageHash(imageTag);
+  fs.writeFileSync(lockPath, JSON.stringify({ imageTag, hash, lockedAt: new Date().toISOString() }, null, 2));
+}
+
+export async function verifyAgainstLockFile(imageTag: string, lockPath: string = "myna.lock"): Promise<boolean> {
+  if (!fs.existsSync(lockPath)) {
+    console.warn(`[docker] no lock file found at ${lockPath} — skipping verification`);
+    return true;
+  }
+  const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  return verifyImageHash(imageTag, lock.hash);
 }
 
 export { docker };

@@ -1,0 +1,25 @@
+name: Reproducibility Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      - name: Build image
+        run: docker build -t myna-test:latest .
+
+      - name: Verify against lock file
+        run: npx tsx src/lock-test.ts verify
