@@ -8,6 +8,7 @@ const wss = new WebSocketServer({ port: PORT });
 interface Room {
     host: WebSocket;
     peer: WebSocket | null;
+    pendingPeer: WebSocket | null;
 }
 
 const rooms = new Map<string, Room>();
@@ -31,7 +32,7 @@ wss.on("connection", (socket) => {
 
         if (msg.type === "create-room") {
             const code = generateRoomCode();
-            rooms.set(code, { host: socket, peer: null });
+            rooms.set(code, { host: socket, peer: null, pendingPeer: null });
             socketToRoom.set(socket, code);
             socket.send(JSON.stringify({ type: "room-created", code }));
             console.log(`[signaling] room created ${code}`);
@@ -48,12 +49,44 @@ wss.on("connection", (socket) => {
                 socket.send(JSON.stringify({ type: "error", message: "room  already full" }));
                 return;
             }
+            if (room.pendingPeer) {
+                socket.send(JSON.stringify({ type: "error", message: "a join request is already pending" }));
+                return;
+            }
 
-            room.peer = socket;
+            room.pendingPeer = socket;
             socketToRoom.set(socket, msg.code);
-            socket.send(JSON.stringify({ type: "joined", code: msg.code }));
-            room.host.send(JSON.stringify({ type: "peer-joined", code: msg.code }));
-            console.log(`[signaling] peer joined room: ${msg.code}`);
+            socket.send(JSON.stringify({ type: "join-pending", code: msg.code }));
+            room.host.send(JSON.stringify({ type: "join-request", code: msg.code }));
+            console.log(`[signaling] join request for room: ${msg.code}`);
+            return;
+        }
+
+        if (msg.type === "approve-peer") {
+            const room = rooms.get(msg.code);
+            if (!room || !room.pendingPeer) {
+                socket.send(JSON.stringify({ type: "error", message: "no pending peer to approve" }));
+                return;
+            }
+            room.peer = room.pendingPeer;
+            room.pendingPeer = null;
+            room.peer.send(JSON.stringify({ type: "joined", code: msg.code }));
+            socket.send(JSON.stringify({ type: "peer-joined", code: msg.code }));
+            console.log(`[signaling] peer approved for room: ${msg.code}`);
+            return;
+        }
+
+        if (msg.type === "deny-peer") {
+            const room = rooms.get(msg.code);
+            if (!room || !room.pendingPeer) {
+                socket.send(JSON.stringify({ type: "error", message: "no pending peer to deny" }));
+                return;
+            }
+
+            room.pendingPeer.send(JSON.stringify({ type: "join-denied", code: msg.code }));
+            socketToRoom.delete(room.pendingPeer);
+            room.pendingPeer = null;
+            console.log(`[signaling] peer denied for room: ${msg.code}`);
             return;
         }
 
@@ -80,26 +113,30 @@ wss.on("connection", (socket) => {
     socket.on("close", () => {
         console.log("[signaling] client disconnected");
         const code = socketToRoom.get(socket);
-        if (!code) return; // was never in a room (e.g. connected but never sent create/join)
+        if (!code) return;
 
         const room = rooms.get(code);
         socketToRoom.delete(socket);
-
         if (!room) return;
 
         if (room.host === socket) {
-            // host left — room  dead
             if (room.peer) {
                 room.peer.send(JSON.stringify({ type: "host-left", code }));
                 socketToRoom.delete(room.peer);
             }
+            if (room.pendingPeer) {
+                socketToRoom.delete(room.pendingPeer);
+            }
             rooms.delete(code);
             console.log(`[signaling] room ${code} closed (host left)`);
         } else if (room.peer === socket) {
-            // peer left — room survives
             room.peer = null;
             room.host.send(JSON.stringify({ type: "peer-left", code }));
             console.log(`[signaling] peer left room ${code}, room still open`);
+        } else if (room.pendingPeer === socket) {
+            room.pendingPeer = null;
+            room.host.send(JSON.stringify({ type: "join-request-cancelled", code }));
+            console.log(`[signaling] pending peer disconnected for room ${code}`);
         }
     });
 });

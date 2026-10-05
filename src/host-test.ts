@@ -1,6 +1,9 @@
 import WebSocket from "ws";
 import { createPeerConnection } from "./peer.js";
 import { createDockerSession } from "./docker.js";
+import * as readline from "readline";
+
+
 const session = await createDockerSession("myna-test:latest");
 const ws = new WebSocket("ws://localhost:8080");
 const pc = createPeerConnection("host");
@@ -70,6 +73,18 @@ ws.on("message", async (raw) => {
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ type: "sdp-offer", sdp: offer }));
     console.log("[host] sent offer");
+  }
+
+  if (msg.type === "join-request") {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`[host] peer wants to join room ${msg.code}. Approve? (y/n) `, (answer) => {
+      rl.close();
+      if (answer.trim().toLowerCase() === "y") {
+        ws.send(JSON.stringify({ type: "approve-peer", code: msg.code }));
+      } else {
+        ws.send(JSON.stringify({ type: "deny-peer", code: msg.code }));
+      }
+    });
   }
 
   if (msg.type === "sdp-answer") {
