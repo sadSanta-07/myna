@@ -1,0 +1,479 @@
+@import "tailwindcss";
+
+/* =========================================================
+   MYNA — GLOBAL DESIGN SYSTEM
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   Fonts
+   --------------------------------------------------------- */
+
+@font-face {
+  font-family: "Poppins";
+  src: url("../components/fonts/Poppins-Regular.woff2")
+    format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 900;
+}
+
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("../components/fonts/InstrumentSerif-Regular.ttf")
+    format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Special Gothic";
+  src: url("../components/fonts/SpecialGothicExpandedOne-Regular.woff2")
+    format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+
+/* ---------------------------------------------------------
+   Theme
+   --------------------------------------------------------- */
+
+@theme {
+  /* Fonts */
+
+  --font-sans: "Poppins", sans-serif;
+  --font-poppins: "Poppins", sans-serif;
+  --font-display: "Instrument Serif", serif;
+  --font-instrument: "Instrument Serif", serif;
+  --font-brand: "Special Gothic", sans-serif;
+  --font-gothic: "Special Gothic", sans-serif;
+
+  --font-mono:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    "Liberation Mono",
+    "Courier New",
+    monospace;
+
+  /* Colors */
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-surface: var(--surface);
+  --color-surface-dark: var(--surface-dark);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+
+  /* Terminal */
+
+  --color-terminal: var(--terminal);
+  --color-terminal-surface: var(--terminal-surface);
+  --color-terminal-text: var(--terminal-text);
+  --color-terminal-muted: var(--terminal-muted);
+  --color-terminal-green: var(--terminal-green);
+
+  /* Radius */
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-full: 9999px;
+}
+
+
+/* ---------------------------------------------------------
+   Light Theme
+   --------------------------------------------------------- */
+
+:root {
+  /* Base */
+
+  --background: #ffffff;
+  --foreground: #000000;
+
+  /* Surfaces */
+
+  --surface: #ffffff;
+  --surface-dark: #000000;
+
+  /* MYNA primary */
+
+  --primary: #bbf451;
+  --primary-hover: #a0d143;
+  --primary-active: #87b337;
+
+  /* Supporting text */
+
+  --muted: #6d6878;
+  --muted-foreground: #737373;
+
+  /* Borders */
+
+  --border: #e5e5e5;
+
+  /* Terminal */
+
+  --terminal: #0a0a0a;
+  --terminal-surface: #111111;
+  --terminal-text: #ffffff;
+  --terminal-muted: #8a8a8a;
+  --terminal-green: #bbf451;
+
+  /* Radius */
+
+  --radius-xs: 2px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+
+  /* Shadows */
+
+  --shadow-sm:
+    0 1px 3px 0 rgba(0, 0, 0, 0.1),
+    0 1px 2px -1px rgba(0, 0, 0, 0.1);
+
+  --shadow-md:
+    0 0 0 1px rgba(0, 0, 0, 0.03),
+    0 2px 4px 0 rgba(0, 0, 0, 0.05),
+    0 12px 24px 0 rgba(0, 0, 0, 0.05);
+
+  --shadow-lg:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+
+  --shadow-xl:
+    0 20px 25px -5px rgba(0, 0, 0, 0.05),
+    0 8px 10px -6px rgba(0, 0, 0, 0.05);
+
+  /* Motion */
+
+  --duration-fast: 150ms;
+  --duration-base: 218ms;
+  --duration-medium: 300ms;
+
+  --ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+
+/* ---------------------------------------------------------
+   Dark Theme
+   --------------------------------------------------------- */
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ffffff;
+
+  --surface: #111111;
+  --surface-dark: #000000;
+
+  --primary: #bbf451;
+  --primary-hover: #a0d143;
+  --primary-active: #87b337;
+
+  --muted: #8a8a8a;
+  --muted-foreground: #737373;
+
+  --border: #262626;
+
+  --terminal: #000000;
+  --terminal-surface: #111111;
+  --terminal-text: #ffffff;
+  --terminal-muted: #8a8a8a;
+  --terminal-green: #bbf451;
+}
+
+
+/* ---------------------------------------------------------
+   Base
+   --------------------------------------------------------- */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+
+  font-family: var(--font-poppins);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--primary);
+  color: #000000;
+}
+
+
+/* ---------------------------------------------------------
+   Typography helpers
+   --------------------------------------------------------- */
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-brand {
+  font-family: var(--font-brand);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+
+/* ---------------------------------------------------------
+   Scrollbar
+   --------------------------------------------------------- */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
+/* ---------------------------------------------------------
+   MYNA Buttons
+   --------------------------------------------------------- */
+
+.myna-button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 12px 24px;
+
+  border: none;
+  border-radius: 9999px;
+
+  background: var(--primary);
+  color: #000000;
+
+  font-family: var(--font-poppins);
+  font-size: 16px;
+  font-weight: 600;
+
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.myna-button-primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.myna-button-primary:active {
+  background: var(--primary-active);
+  transform: translateY(0);
+}
+
+
+.myna-button-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 12px 28px;
+
+  border: none;
+  border-radius: 9999px;
+
+  background: #000000;
+  color: #ffffff;
+
+  font-family: var(--font-poppins);
+  font-size: 16px;
+  font-weight: 600;
+
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.myna-button-dark:hover {
+  background: #151515;
+  transform: translateY(-1px);
+}
+
+.myna-button-dark:active {
+  transform: translateY(0);
+}
+
+
+/* ---------------------------------------------------------
+   Cards
+   --------------------------------------------------------- */
+
+.myna-card {
+  background: var(--surface);
+
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-md);
+
+  transition:
+    box-shadow var(--duration-base) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.myna-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+
+/* ---------------------------------------------------------
+   Terminal
+   --------------------------------------------------------- */
+
+.myna-terminal {
+  overflow: hidden;
+
+  background: var(--terminal);
+  color: var(--terminal-text);
+
+  border: 1px solid #222222;
+  border-radius: var(--radius-xl);
+
+  box-shadow: var(--shadow-xl);
+}
+
+.myna-terminal-header {
+  display: flex;
+  align-items: center;
+
+  height: 48px;
+  padding: 0 16px;
+
+  background: var(--terminal-surface);
+
+  border-bottom: 1px solid #222222;
+}
+
+.myna-terminal-body {
+  padding: 24px;
+
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.myna-terminal-prompt {
+  color: var(--terminal-green);
+}
+
+.myna-terminal-muted {
+  color: var(--terminal-muted);
+}
+
+
+/* ---------------------------------------------------------
+   Glow
+   --------------------------------------------------------- */
+
+@keyframes mynaGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(187, 244, 81, 0),
+      0 0 12px rgba(187, 244, 81, 0.15);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(187, 244, 81, 0.08),
+      0 0 24px rgba(187, 244, 81, 0.3);
+  }
+}
+
+.myna-glow {
+  animation: mynaGlow 2.5s ease-in-out infinite;
+}
+
+
+/* ---------------------------------------------------------
+   Connection indicator
+   --------------------------------------------------------- */
+
+@keyframes mynaPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.myna-pulse {
+  animation: mynaPulse 1.8s ease-in-out infinite;
+}
+
+
+/* ---------------------------------------------------------
+   Focus
+   --------------------------------------------------------- */
+
+:focus-visible {
+  outline: 2px solid #0586d2;
+  outline-offset: 2px;
+}
+
+
+/* ---------------------------------------------------------
+   Reduced motion
+   --------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
