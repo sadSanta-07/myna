@@ -13,6 +13,8 @@ interface Room {
 
 const rooms = new Map<string, Room>();
 const socketToRoom = new Map<WebSocket, string>();
+const VALID_ROLES = ["view", "control"];
+
 
 function generateRoomCode(): string {
     return randomBytes(4).toString("hex");
@@ -57,20 +59,25 @@ wss.on("connection", (socket) => {
             room.pendingPeer = socket;
             socketToRoom.set(socket, msg.code);
             socket.send(JSON.stringify({ type: "join-pending", code: msg.code }));
-            room.host.send(JSON.stringify({ type: "join-request", code: msg.code }));
+            room.host.send(JSON.stringify({
+                type: "join-request",
+                code: msg.code,
+                requestedRole: VALID_ROLES.includes(msg.requestedRole) ? msg.requestedRole : "view",
+            }));
             console.log(`[signaling] join request for room: ${msg.code}`);
             return;
         }
 
         if (msg.type === "approve-peer") {
             const room = rooms.get(msg.code);
+            const role = VALID_ROLES.includes(msg.role) ? msg.role : "view";
             if (!room || !room.pendingPeer) {
                 socket.send(JSON.stringify({ type: "error", message: "no pending peer to approve" }));
                 return;
             }
             room.peer = room.pendingPeer;
             room.pendingPeer = null;
-            room.peer.send(JSON.stringify({ type: "joined", code: msg.code }));
+            room.peer.send(JSON.stringify({ type: "joined", code: msg.code, role }));
             socket.send(JSON.stringify({ type: "peer-joined", code: msg.code }));
             console.log(`[signaling] peer approved for room: ${msg.code}`);
             return;

@@ -8,6 +8,8 @@ const session = await createDockerSession("myna-test:latest");
 const ws = new WebSocket("ws://localhost:8080");
 const pc = createPeerConnection("host");
 
+let peerRole: "view" | "control" = "view";
+
 let remoteDescSet = false;
 const pendingCandidates: any[] = [];
 
@@ -23,11 +25,26 @@ session.onData((data: string) => {
   }
 });
 
+process.on("SIGINT", async () => {
+  await session.kill();
+  process.exit(0);
+});
+
+session.onExit(async () => {
+  console.log("[host] shell exited, closing session");
+  try { dc.close(); } catch { }
+  pc.close();
+  ws.close();
+  await session.kill();
+  process.exit(0);
+});
+
 dc = pc.createDataChannel("terminal");
 
 dc.onopen = () => {
   console.log("[host] data channel open");
   channelOpen = true;
+
   for (const chunk of outputBuffer) {
     dc.send(chunk);
   }
@@ -35,17 +52,23 @@ dc.onopen = () => {
 };
 
 dc.onmessage = (event) => {
+  if (peerRole !== "control") {
+    // Intentionally discard viewer input.
+    return;
+  }
+
   const data = event.data;
 
   if (typeof data === "string" && data.startsWith("{")) {
     try {
       const msg = JSON.parse(data);
+
       if (msg.type === "resize") {
         session.resize(msg.cols, msg.rows);
         return;
       }
     } catch {
-      // not valid JSON — fallbaxk
+      // Not JSON; treat it as terminal input.
     }
   }
 
@@ -77,14 +100,19 @@ ws.on("message", async (raw) => {
 
   if (msg.type === "join-request") {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(`[host] peer wants to join room ${msg.code}. Approve? (y/n) `, (answer) => {
-      rl.close();
-      if (answer.trim().toLowerCase() === "y") {
-        ws.send(JSON.stringify({ type: "approve-peer", code: msg.code }));
-      } else {
-        ws.send(JSON.stringify({ type: "deny-peer", code: msg.code }));
+    rl.question(
+      `[host] peer wants to join (requested: ${msg.requestedRole}). (c)ontrol / (v)iew / (n)o? `,
+      (answer) => {
+        rl.close();
+        const a = answer.trim().toLowerCase();
+        if (a === "c" || a === "v") {
+          peerRole = a === "c" ? "control" : "view";
+          ws.send(JSON.stringify({ type: "approve-peer", code: msg.code, role: peerRole }));
+        } else {
+          ws.send(JSON.stringify({ type: "deny-peer", code: msg.code }));
+        }
       }
-    });
+    );
   }
 
   if (msg.type === "sdp-answer") {
