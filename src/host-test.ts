@@ -3,22 +3,59 @@ import { createPeerConnection } from "./peer.js";
 import { createDockerSession } from "./docker.js";
 import * as readline from "readline";
 
-
 const session = await createDockerSession("myna-test:latest");
 const ws = new WebSocket("ws://localhost:8080");
-const pc = createPeerConnection("host");
 
+let activePrompt: readline.Interface | null = null;
 let peerRole: "view" | "control" = "view";
 
-let remoteDescSet = false;
-const pendingCandidates: any[] = [];
-
-let dc: RTCDataChannel;
+let pc: RTCPeerConnection | null = null;
+let dc: RTCDataChannel | null = null;
 let channelOpen = false;
+let remoteDescSet = false;
+let pendingCandidates: any[] = [];
 const outputBuffer: string[] = [];
 
+function enableHostInput() {
+  if (!process.stdin.isTTY) return;
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.setEncoding("utf8");
+  process.stdin.removeAllListeners("data");
+
+  process.stdin.on("data", (key: string) => {
+    if (key === "\x03") { // Ctrl+C
+      process.emit("SIGINT");
+    }
+    if (key === "\x18") { // Ctrl+X
+      console.log("\n[host] revoking peer access...");
+      ws.send(JSON.stringify({ type: "revoke-peer" }));
+      cleanupPeer();
+    }
+  });
+}
+
+function disableHostInput() {
+  if (!process.stdin.isTTY) return;
+  process.stdin.setRawMode(false);
+  process.stdin.pause();
+  process.stdin.removeAllListeners("data");
+}
+
+function cleanupPeer() {
+  channelOpen = false;
+  remoteDescSet = false;
+  pendingCandidates = [];
+  try { dc?.close(); } catch { }
+  try { pc?.close(); } catch { }
+  pc = null;
+  dc = null;
+}
+
+enableHostInput();
+
 session.onData((data: string) => {
-  if (channelOpen) {
+  if (channelOpen && dc?.readyState === "open") {
     dc.send(data);
   } else {
     outputBuffer.push(data);
@@ -32,55 +69,11 @@ process.on("SIGINT", async () => {
 
 session.onExit(async () => {
   console.log("[host] shell exited, closing session");
-  try { dc.close(); } catch { }
-  pc.close();
+  cleanupPeer();
   ws.close();
   await session.kill();
   process.exit(0);
 });
-
-dc = pc.createDataChannel("terminal");
-
-dc.onopen = () => {
-  console.log("[host] data channel open");
-  channelOpen = true;
-
-  for (const chunk of outputBuffer) {
-    dc.send(chunk);
-  }
-  outputBuffer.length = 0;
-};
-
-dc.onmessage = (event) => {
-  if (peerRole !== "control") {
-    // Intentionally discard viewer input.
-    return;
-  }
-
-  const data = event.data;
-
-  if (typeof data === "string" && data.startsWith("{")) {
-    try {
-      const msg = JSON.parse(data);
-
-      if (msg.type === "resize") {
-        session.resize(msg.cols, msg.rows);
-        return;
-      }
-    } catch {
-      // Not JSON; treat it as terminal input.
-    }
-  }
-
-  session.write(data);
-};
-
-pc.onicecandidate = (event) => {
-  if (event.candidate) {
-    console.log(`[local] candidate type: ${event.candidate.type}`);
-    ws.send(JSON.stringify({ type: "ice-candidate", candidate: event.candidate }));
-  }
-};
 
 ws.on("open", () => {
   console.log("[host] connected to signaling server");
@@ -92,6 +85,41 @@ ws.on("message", async (raw) => {
   console.log("[host] received:", msg.type);
 
   if (msg.type === "peer-joined") {
+    cleanupPeer();
+
+    pc = createPeerConnection("host");
+    dc = pc.createDataChannel("terminal");
+
+    dc.onopen = () => {
+      console.log("[host] data channel open");
+      channelOpen = true;
+      for (const chunk of outputBuffer) {
+        dc.send(chunk);
+      }
+      outputBuffer.length = 0;
+    };
+
+    dc.onmessage = (event) => {
+      if (peerRole !== "control") return;
+      const data = event.data;
+      if (typeof data === "string" && data.startsWith("{")) {
+        try {
+          const m = JSON.parse(data);
+          if (m.type === "resize") {
+            session.resize(m.cols, m.rows);
+            return;
+          }
+        } catch { }
+      }
+      session.write(data);
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(JSON.stringify({ type: "ice-candidate", candidate: event.candidate }));
+      }
+    };
+
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     ws.send(JSON.stringify({ type: "sdp-offer", sdp: offer }));
@@ -99,11 +127,15 @@ ws.on("message", async (raw) => {
   }
 
   if (msg.type === "join-request") {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(
+    disableHostInput();
+    activePrompt = readline.createInterface({ input: process.stdin, output: process.stdout });
+    activePrompt.question(
       `[host] peer wants to join (requested: ${msg.requestedRole}). (c)ontrol / (v)iew / (n)o? `,
       (answer) => {
-        rl.close();
+        activePrompt?.close();
+        activePrompt = null;
+        enableHostInput();
+
         const a = answer.trim().toLowerCase();
         if (a === "c" || a === "v") {
           peerRole = a === "c" ? "control" : "view";
@@ -115,10 +147,23 @@ ws.on("message", async (raw) => {
     );
   }
 
+  if (msg.type === "join-request-cancelled") {
+    if (activePrompt) {
+      activePrompt.close();
+      activePrompt = null;
+      enableHostInput();
+      console.log("\n[host] peer disconnected before approval. Waiting for new requests...");
+    }
+  }
+
+  if (msg.type === "peer-left") {
+    cleanupPeer();
+  }
+
   if (msg.type === "sdp-answer") {
+    if (!pc) return;
     await pc.setRemoteDescription(msg.sdp);
     remoteDescSet = true;
-    console.log("[host] set remote description (answer)");
     for (const candidate of pendingCandidates) {
       await pc.addIceCandidate(candidate);
     }
@@ -126,6 +171,7 @@ ws.on("message", async (raw) => {
   }
 
   if (msg.type === "ice-candidate") {
+    if (!pc) return;
     if (remoteDescSet) {
       await pc.addIceCandidate(msg.candidate);
     } else {

@@ -96,6 +96,7 @@ ws.on("message", async (raw) => {
   if (msg.type === "host-left") return leave("host left");
   if (msg.type === "join-denied") return leave("host denied your request");
   if (msg.type === "error") return leave(`server error: ${msg.message}`);
+  if (msg.type === "revoked") return leave("host revoked your access");
 
   if (msg.type === "sdp-offer") {
     await pc.setRemoteDescription(msg.sdp);
