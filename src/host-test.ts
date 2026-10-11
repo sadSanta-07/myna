@@ -3,7 +3,7 @@ import { createPeerConnection } from "./peer.js";
 import { createDockerSession } from "./docker.js";
 
 const session = await createDockerSession("myna-test:latest");
-const ws = new WebSocket("ws://localhost:8080");
+const ws = new WebSocket(process.env.SIGNAL_URL || "ws://localhost:8080");
 
 interface PeerSession {
   pc: RTCPeerConnection;
@@ -122,6 +122,14 @@ ws.on("message", async (raw) => {
       const idx = joinQueue.findIndex(r => r.peerId === msg.peerId);
       if (idx !== -1) joinQueue.splice(idx, 1);
     }
+  }
+
+  if (msg.type === "room-created") {
+    console.log(`\n======================================`);
+    console.log(` ROOM CODE : ${msg.code}`);
+    console.log(` SHARE LINK: https://myna-ag89.onrender.com/#${msg.code}`);
+    console.log(`======================================\n`);
+    console.log(`Waiting for peers to join...`);
   }
 
   if (msg.type === "peer-joined") {
