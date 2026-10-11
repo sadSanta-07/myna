@@ -36,7 +36,7 @@ pc.ondatachannel = (event) => {
       }
 
       if (dc.readyState === "open") {
-        dc.send(data);
+        dc.send(JSON.stringify({ type: "input", data }));
       }
     });
 

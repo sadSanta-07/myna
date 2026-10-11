@@ -62,7 +62,7 @@ export default function Navbar() {
     <header className="fixed inset-x-0 top-5 z-50 flex justify-center px-4 sm:top-7">
       <nav
         aria-label="Main navigation"
-        className="relative flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-black/8 bg-white/80 px-4 text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-2xl sm:px-5"
+        className="relative flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-black/8 bg-white/80 px-4 text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-4xl sm:px-5"
       >
         {/* Brand */}
         <Link
@@ -71,7 +71,7 @@ export default function Navbar() {
           aria-label="MYNA home"
           className="group flex shrink-0 items-center gap-2"
         >
-          {/* <div className="relative size-10 shrink-0 overflow-hidden rounded-full bg-black">
+          <div className="relative size-10 shrink-0 overflow-hidden rounded-full bg-black">
             <Image
               src="/myna.jpg"
               alt="MYNA logo"
@@ -80,7 +80,7 @@ export default function Navbar() {
               sizes="80px"
               className="object-cover"
             />
-          </div> */}
+          </div>
 
           <span className="font-brand text-lg tracking-wide">
             MYNA

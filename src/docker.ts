@@ -51,16 +51,26 @@ export async function startContainer(imageTag: string): Promise<Docker.Container
   return container;
 }
 
-export async function attachToContainer(container: Docker.Container) {
-  const stream = await container.attach({
-    stream: true,
-    stdin: true,
-    stdout: true,
-    stderr: true,
-    hijack: true, // raw bi i/0
+export async function attachToContainer(container: Docker.Container): Promise<NodeJS.ReadWriteStream> {
+  return new Promise((resolve, reject) => {
+    (container.modem as any).dial({
+      path: `/containers/${container.id}/attach?stream=1&stdin=1&stdout=1&stderr=1`,
+      method: "POST",
+      isStream: true,
+      hijack: true,
+      options: {},
+      statusCodes: {
+        200: true,
+        101: true,
+        400: "bad parameter",
+        404: "no such container",
+        500: "server error"
+      }
+    }, (err: any, stream: NodeJS.ReadWriteStream) => {
+      if (err) return reject(err);
+      resolve(stream);
+    });
   });
-
-  return stream;
 }
 
 export async function createDockerSession(imageTag: string): Promise<Session> {
@@ -85,9 +95,7 @@ export async function createDockerSession(imageTag: string): Promise<Session> {
     }
     for (const cb of exitCallbacks) cb({ exitCode });
   });
-
-  stream.write("\n");
-
+  
   return {
     onData: (callback) => dataCallbacks.push(callback),
     write: (data) => stream.write(data),
