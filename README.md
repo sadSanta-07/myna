@@ -1,71 +1,83 @@
 # MYNA
 
-`envshare up` takes a shell you're running locally, and lets someone else get a live, interactive terminal inside that *exact same running session* — over a direct WebRTC connection, with no server in the middle holding the actual terminal data.
+`myna` lets someone get a live, interactive terminal inside a container running on your machine, over a direct peer-to-peer WebRTC connection. No server in the middle carries the terminal data.
 
-Think of it as screen sharing, but for a terminal: the peer gets real keystroke-level access to a shell, reached over a connection that punches through NAT the way a video call does, not the way SSH does.
+Think of it as screen sharing for a terminal. The guest gets real keystroke-level access to a shell, but the shell lives in a disposable container, and you decide who gets in and what they can do.
 
-## Status: Phase 3 (containerized, reproducible sharing)
+## Status: Phase 4 complete (multi-peer, permissions)
 
-The core sharing loop is built and verified, backed by an isolated, reproducible container:
+What is built and tested:
 
-- A real PTY-equivalent shell, spawned **inside a Docker container** (via `dockerode`), not on the host machine
-- A shared `Session` interface so the same signaling/WebRTC/DataChannel code works identically whether the session is local or containerized
-- A signaling server for room-code-based pairing between host and peer (`ws`)
-- A full WebRTC handshake — SDP offer/answer, ICE candidate exchange — establishing a direct `RTCDataChannel` between host and peer
-- Real PTY output streamed to the peer, rendered as an actual terminal (not logged/escaped)
-- Real keystrokes from the peer sent back and executed inside the host's container
-- Terminal resize synced across the connection, using Docker's real container resize API
-- **Verified across genuinely separate networks** — tested between a home network and a cloud VM, including the symmetric-NAT case where direct/STUN-only connectivity fails and a TURN relay is required. TURN is configured as a fallback in `iceServers`, not the primary path.
-- **Verified isolated:** running `whoami`/`ls` from the peer's side returns the container's identity (`root`) and the container's bare filesystem — not the host machine's real user or project directory.
-- **Verified reproducible:** the Dockerfile's build output is content-hashed (filesystem layers, not the top-level image ID — which was tested and found to include non-deterministic build metadata) and checked against a committed `myna.lock` file. Confirmed byte-identical across a local machine, a separate cloud VM, and GitHub Actions' own clean-room runners. CI fails the build if a change drifts from the locked hash without updating it — this was deliberately tested with a real failing run, not assumed.
+- **Peer-to-peer terminal streaming.** PTY-equivalent shell I/O and resize events travel over a WebRTC DataChannel. A small signaling server only brokers the handshake (SDP/ICE) and never sees terminal data.
+- **Works across real networks.** Verified between a home network and a cloud VM, including the symmetric-NAT case where STUN alone fails and a TURN relay is required.
+- **Container isolation.** The shared shell runs in a disposable Docker container (`dockerode`). Nothing from your machine is mounted into it, so a guest cannot read your files.
+- **Reproducible environments.** The image's filesystem layers are content-hashed and checked against a committed `myna.lock`. CI fails if a build drifts. Verified identical on a laptop, a cloud VM and GitHub Actions' clean runners.
+- **Host-controlled access.** Every join request must be approved by the host, who chooses `control` (full input) or `view` (read-only). Roles are enforced on the host, not trusted from the guest. The signaling server accepts approvals only from the host's own connection and relays handshake messages only for approved peers, so a waiting guest cannot approve itself or forge messages to the host.
+- **Multiple guests.** One host can serve several peers at once, each with its own connection and role. The host can revoke connected peers mid-session (currently all at once) without stopping the container. Late joiners get recent output replayed.
 
-### Scope note
+### Limitations (read before using)
 
-There's no unified CLI yet, and connecting currently still requires Node.js and `npm install` on the peer's side — the "no setup to connect" goal isn't solved yet, that's what a browser-based client (planned next) is for. There's also no host-approval flow, no viewer-vs-control distinction, and no multi-peer support yet (one host, one peer, full access once connected). See `ROADMAP.md` for what's planned next.
+- **Not yet hardened.** Containers have no CPU/memory limits and no network restrictions. Only share with people you trust until the security phase lands (see `ROADMAP.md`, Phase 7).
+- **The shared environment is a bare Ubuntu image,** not your project's own environment yet. Building from your Dockerfile and mounting your project is Phase 6.
+- **Joining still needs Node.js** and this repo. A browser-based client that joins from a link (Phase 5) is next.
+- **No npm package yet.** You run the scripts below by hand.
+- **Requires Docker Desktop (or a Docker daemon) running on the host machine, and Node.js 22 or newer.**
 
 ## Running it today
 
-You run three scripts by hand, in three terminals. **Docker Desktop must be running** — the host script builds and starts a container as part of setup.
+Use three or more terminals. Docker must be running.
 
-**1. Start the signaling server:**
+**1. Signaling server**
+
 ```
 npm run signal
 ```
 
-**2. Start the host** (this builds/starts a container and shares the shell inside it):
+**2. Host** (builds and starts the container, prints a room code)
+
 ```
 npx tsx src/host-test.ts
 ```
-It will print a room code, e.g. `[host] received: room-created ...`.
 
-**3. On the peer side, join with that code:**
+When a peer asks to join, the host chooses: `(c)ontrol`, `(v)iew`, or `(n)o`.
+
+**3. Guest** (one terminal per guest)
+
 ```
-npx tsx src/peer-test.ts <room-code>
+npx tsx src/peer-test.ts <room-code> [control|view]
 ```
 
-Once both sides log `data channel open`, the peer's terminal becomes a live view into the host's containerized shell — type normally, resize the window normally, it behaves like a real terminal session, isolated from the host machine.
+The role you ask for is a request. The host decides what you actually get.
 
-### Cross-network testing
+### Controls
 
-By default, the signaling server only listens on `localhost`. To test across two separate networks (not just two processes on the same machine), tunnel it with a tool like `ngrok`:
+| Key | Where | Effect |
+| --- | --- | --- |
+| `Ctrl+]` | guest | detach from the session |
+| `Ctrl+X` | host | revoke all connected peers (per-peer revoke is planned) |
+| `exit` | inside the shell | ends the shell, which ends the whole session |
+
+### Testing across networks
+
+The signaling server listens on `localhost` only. To connect a guest on another network, tunnel it (for example `ngrok http 8080`) and point the guest at the public address:
+
 ```
-ngrok http 8080
+SIGNAL_URL=wss://<your-tunnel-address> npx tsx src/peer-test.ts <room-code>
 ```
-and point `peer-test.ts`'s WebSocket URL at the resulting public `wss://` address instead of `ws://localhost:8080`.
 
 ### TURN credentials
 
-Cross-network connectivity relies on a TURN server as a fallback for NAT configurations that STUN alone can't traverse. Copy `.env.example` to `.env` and fill in your own TURN credentials (e.g. from [Metered](https://www.metered.ca)) — `.env` is gitignored and never committed.
+Connections that STUN cannot traverse need a TURN relay. Copy `.env.example` to `.env` and set `TURN_USERNAME` and `TURN_CREDENTIAL` (for example from [Metered](https://www.metered.ca)). `.env` is gitignored. Never commit it.
 
-### Reproducibility verification
+### Reproducibility check
 
 ```
 npx tsx src/lock-test.ts write    # pin the current build's hash into myna.lock
-npx tsx src/lock-test.ts verify   # check a build against the pinned hash
+npx tsx src/lock-test.ts verify   # compare a build against the pinned hash
 ```
 
-CI runs `verify` automatically on every push to `main` (`.github/workflows/reproducibility.yml`).
+CI runs `verify` on every push to `main`.
 
 ## What's next
 
-See `ROADMAP.md` for the full phase breakdown — a multi-peer permission model, and a browser-based peer client so joining doesn't require installing anything, which is the actual next step toward the project's original "no setup needed" goal.
+See [`ROADMAP.md`](./ROADMAP.md): a browser client, a real `myna up` / `myna join` CLI published to npm, security hardening, and a public launch.

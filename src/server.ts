@@ -1,9 +1,18 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { randomBytes } from "crypto";
+import express from "express";
+import http from "http";
+import path from "path";
 
-const PORT = 8080;
-const wss = new WebSocketServer({ port: PORT });
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 
+const app = express();
+app.use(express.static(path.join(process.cwd(), "public")));
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+app.get("/health", (req, res) => res.send("OK"));
 interface Room {
     host: WebSocket;
     peers: Map<string, WebSocket>;
@@ -17,6 +26,26 @@ const VALID_ROLES = ["view", "control"];
 
 function generateId(): string {
     return randomBytes(4).toString("hex");
+}
+
+function getIceServers() {
+    const iceServers: RTCIceServer[] = [
+        { urls: "stun:stun.l.google.com:19302" }
+    ];
+
+    if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
+        iceServers.push({
+            urls: [
+                "turn:global.relay.metered.ca:80",
+                "turn:global.relay.metered.ca:443",
+                "turn:global.relay.metered.ca:443?transport=tcp"
+            ],
+            username: process.env.TURN_USERNAME,
+            credential: process.env.TURN_CREDENTIAL
+        });
+    }
+
+    return iceServers;
 }
 
 wss.on("connection", (socket) => {
@@ -75,8 +104,9 @@ wss.on("connection", (socket) => {
                 room.peers.set(targetId, targetSocket);
                 room.pendingPeers.delete(targetId);
 
-                targetSocket.send(JSON.stringify({ type: "joined", code, role }));
-                socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role }));
+                const iceServers = getIceServers();
+                targetSocket.send(JSON.stringify({ type: "joined", code, role, iceServers }));
+                socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers }));
                 console.log(`[signaling] peer ${targetId} approved`);
             } else if (msg.type === "deny-peer") {
                 const targetSocket = room.pendingPeers.get(targetId);
@@ -139,4 +169,6 @@ wss.on("connection", (socket) => {
     });
 });
 
-console.log(`[signaling] listening on ws://localhost:${PORT}`);
+server.listen(PORT, () => {
+    console.log(`[signaling] listening on http://localhost:${PORT}`);
+});
