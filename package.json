@@ -3,9 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "bin": {
+    "myna": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "test": "tsx --test src/*.test.ts",
     "dev": "tsx src/index.ts",
+    "build": "tsc",
     "signal": "tsx src/server.ts"
   },
   "keywords": [],

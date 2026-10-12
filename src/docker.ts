@@ -21,7 +21,11 @@ export async function buildImage(
     throw new Error(`No Dockerfile found at ${dockerfilePath}`);
   }
 
-  const tarStream = tar.pack(dockerfileDir);
+  const tarStream = tar.pack(dockerfileDir, {
+    ignore: (name) => {
+      return name.includes("node_modules") || name.includes(".git") || name.includes("dist");
+    }
+  });
 
   const stream = await docker.buildImage(tarStream as unknown as NodeJS.ReadableStream, {
     t: imageTag,
@@ -38,13 +42,27 @@ export async function buildImage(
   });
 }
 
-export async function startContainer(imageTag: string): Promise<Docker.Container> {
+export async function startContainer(
+  imageTag: string,
+  mountMode: "ro" | "rw" | "none" = "ro"
+): Promise<Docker.Container> {
+
+  const binds = [];
+  if (mountMode !== "none") {
+    // Binds the host's current directory to /workspace in the container
+    binds.push(`${process.cwd()}:/workspace:${mountMode}`);
+  }
+
   const container = await docker.createContainer({
     Image: imageTag,
     Cmd: ["/bin/bash"],
     Tty: true,
     OpenStdin: true,
     StdinOnce: false,
+    WorkingDir: mountMode !== "none" ? "/workspace" : "/",
+    HostConfig: {
+      Binds: binds,
+    }
   });
 
   await container.start();
@@ -73,8 +91,11 @@ export async function attachToContainer(container: Docker.Container): Promise<No
   });
 }
 
-export async function createDockerSession(imageTag: string): Promise<Session> {
-  const container = await startContainer(imageTag);
+export async function createDockerSession(
+  imageTag: string,
+  mountMode: "ro" | "rw" | "none" = "ro"
+): Promise<Session> {
+  const container = await startContainer(imageTag, mountMode);
   const stream = await attachToContainer(container);
 
   const dataCallbacks: ((data: string) => void)[] = [];
@@ -95,7 +116,7 @@ export async function createDockerSession(imageTag: string): Promise<Session> {
     }
     for (const cb of exitCallbacks) cb({ exitCode });
   });
-  
+
   return {
     onData: (callback) => dataCallbacks.push(callback),
     write: (data) => stream.write(data),

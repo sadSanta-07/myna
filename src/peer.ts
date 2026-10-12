@@ -4,39 +4,47 @@ dotenv.config();
 
 const { RTCPeerConnection } = wrtc;
 
-export function createPeerConnection(label: string): RTCPeerConnection {
-  const pc = new RTCPeerConnection({
-    iceServers: [
+export function createPeerConnection(role: "host" | "peer", customIceServers?: any[]) {
+  let defaultIceServers: any[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
+  if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
+    defaultIceServers = [
       { urls: "stun:stun.relay.metered.ca:80" },
       {
         urls: "turn:global.relay.metered.ca:80",
-        username: process.env.TURN_USERNAME!,
-        credential: process.env.TURN_CREDENTIAL!,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
       },
       {
         urls: "turn:global.relay.metered.ca:80?transport=tcp",
-        username: process.env.TURN_USERNAME!,
-        credential: process.env.TURN_CREDENTIAL!,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
       },
       {
         urls: "turn:global.relay.metered.ca:443",
-        username: process.env.TURN_USERNAME!,
-        credential: process.env.TURN_CREDENTIAL!,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
       },
       {
         urls: "turns:global.relay.metered.ca:443?transport=tcp",
-        username: process.env.TURN_USERNAME!,
-        credential: process.env.TURN_CREDENTIAL!,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_CREDENTIAL,
       },
-    ],
-  });
+    ];
+  }
+
+  const iceServers = (customIceServers && customIceServers.length > 0) 
+    ? customIceServers 
+    : defaultIceServers;
+
+  const pc = new RTCPeerConnection({ iceServers });
 
   pc.oniceconnectionstatechange = () => {
-    console.log(`[${label}] ICE connection state:`, pc.iceConnectionState);
+    console.log(`[${role}] ICE connection state:`, pc.iceConnectionState);
   };
 
   pc.onconnectionstatechange = () => {
-    console.log(`[${label}] connection state:`, pc.connectionState);
+    console.log(`[${role}] connection state:`, pc.connectionState);
   };
 
   return pc;

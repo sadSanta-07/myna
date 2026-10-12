@@ -1,71 +1,113 @@
-import * as pty from "node-pty";
+#!/usr/bin/env node
+import { Command } from "commander";
 import figlet from "figlet";
 import chalk from "chalk";
-
-const shell = process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+import { createLocalSession } from "./session.js";
+import { createDockerSession, docker } from "./docker.js";
+import { runUp } from "./cli/up.js";
+import { runJoin } from "./cli/join.js";
+import * as fs from "fs";
+import * as path from "path";
+import { buildImage } from "./docker.js";
+import * as crypto from "crypto";
 
 console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
-let ptyProcess: pty.IPty;
-try {
-  ptyProcess = pty.spawn(shell, [], {
-    name: "xterm-color",
-    cols: process.stdout.columns || 80,
-    rows: process.stdout.rows || 24,
-    cwd: process.cwd(),
-    env: process.env as { [key: string]: string },
+const program = new Command();
+
+program
+  .name("myna")
+  .description("Peer-to-peer containerized terminal sharing")
+  .version("0.1.0");
+
+program
+  .command("up")
+  .description("Start a shared terminal session and generate a join link")
+  .option("--local", "Run on the bare-metal host using node-pty instead of Docker")
+  .option("-m, --mount <mode>", "Workspace mount mode: ro, rw, or none", "ro")
+  .option("-i, --image <name>", "Specific Docker image to use")
+  .action(async (options) => {
+    let session;
+
+    if (options.local) {
+      console.log(chalk.yellow("[myna] Starting in --local mode. Host filesystem is exposed."));
+      session = createLocalSession();
+    } else {
+      try {
+        await docker.ping();
+      } catch (err) {
+        console.error(chalk.red("\n❌ Error: Cannot connect to the Docker daemon."));
+        process.exit(1);
+      }
+
+      let imageTag = options.image;
+
+      if (!imageTag) {
+        const hasDockerfile = fs.existsSync(path.join(process.cwd(), "Dockerfile"));
+        if (hasDockerfile) {
+          imageTag = "myna-workspace:latest";
+          console.log(chalk.blue("[myna] Found Dockerfile. Building project environment..."));
+          try {
+            await buildImage(imageTag, process.cwd());
+
+            const lockPath = path.join(process.cwd(), "myna.lock");
+            if (fs.existsSync(lockPath)) {
+              const lockFileContent = fs.readFileSync(lockPath, "utf-8");
+              let expectedHash = "";
+
+              try {
+                const lockData = JSON.parse(lockFileContent);
+                expectedHash = lockData.hash;
+              } catch (e) {
+                expectedHash = lockFileContent.trim();
+              }
+
+              const imageInfo = await docker.getImage(imageTag).inspect();
+              const layers = imageInfo.RootFS.Layers;
+
+              const rawHash = crypto.createHash("sha256").update(JSON.stringify(layers)).digest("hex");
+              const actualHash = `sha256:${rawHash}`;
+
+              if (actualHash === expectedHash) {
+                console.log(chalk.green("✅ Environment verified against myna.lock (No drift)"));
+              } else {
+                console.log(chalk.yellow(`\n⚠️ WARNING: Environment drift detected!`));
+                console.log(chalk.yellow(`   Expected: ${expectedHash.slice(0, 19)}...`));
+                console.log(chalk.yellow(`   Actual:   ${actualHash.slice(0, 19)}...`));
+                console.log(chalk.yellow(`   The container built successfully, but it differs from the lockfile.\n`));
+              }
+            } else {
+              console.log(chalk.gray("[myna] No myna.lock found. Skipping reproducibility check."));
+            }
+          } catch (err) {
+            console.error(chalk.red(`\n❌ Error: Docker build failed - ${(err as Error).message}`));
+            process.exit(1);
+          }
+        } else {
+          console.error(chalk.red("\n❌ Error: No Dockerfile found in current directory."));
+          console.error(chalk.yellow("Tip: Create a Dockerfile, or use `-i ubuntu:22.04` (make sure to `docker pull` it first).\n"));
+          process.exit(1);
+        }
+      }
+
+      console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount})...`));
+      if (options.mount === "rw") {
+        console.log(chalk.yellow("⚠️  WARNING: Container has read/write access to your host files."));
+      }
+
+      session = await createDockerSession(imageTag, options.mount as "ro" | "rw" | "none");
+    }
+
+    await runUp(session);
   });
-} catch (err) {
-  console.error(
-    chalk.red(
-      `[myna] failed to spawn shell : ${(err as Error).message}`
-    )
-  );
-  process.exit(1);
-}
 
-ptyProcess.onData((data: string) => {
-  process.stdout.write(data);
-});
+program
+  .command("join <code>")
+  .description("Join a session from the terminal")
+  .option("-r, --role <role>", "Requested role (view or control)", "view")
+  .action(async (code, options) => {
+    console.log(chalk.blue(`[myna] Joining room ${code} as ${options.role}...`));
+    await runJoin(code, options.role);
+  });
 
-process.stdin.setRawMode(true);
-process.stdin.resume();
-process.stdin.setEncoding("utf8");
-
-process.stdin.on("data", (data: string) => {
-  ptyProcess.write(data);
-});
-
-process.stdout.on("resize", () => {
-  const cols = process.stdout.columns;
-  const rows = process.stdout.rows;
-  if (!cols || !rows) return;
-
-  try {
-    ptyProcess.resize(cols, rows);
-  } catch (err) {
-    // race with exit -safe to ignore
-  }
-});
-
-let shuttingDown = false;
-
-function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-
-  process.stdin.setRawMode(false);
-  ptyProcess.kill();
-
-  process.exit(0);
-
-}
-
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
-
-ptyProcess.onExit(({ exitCode }) => {
-  process.stdin.setRawMode(false);
-  console.log(chalk.yellow(`\n[myna] shell exited with code ${exitCode}`));
-  process.exit(exitCode);
-});
+program.parse(process.argv);
