@@ -4,8 +4,8 @@ import figlet from "figlet";
 import chalk from "chalk";
 import { createLocalSession } from "./session.js";
 import { createDockerSession, docker } from "./docker.js";
-import { runUp } from "./cli/up.js";
-import { runJoin } from "./cli/join.js";
+import { runUp } from "./cli/commands/up.js";
+import { runJoin } from "./cli/commands/join.js";
 import * as fs from "fs";
 import * as path from "path";
 import { buildImage } from "./docker.js";
@@ -27,6 +27,7 @@ program
   .option("--local", "Run on the bare-metal host using node-pty instead of Docker")
   .option("-m, --mount <mode>", "Workspace mount mode: ro, rw, or none", "ro")
   .option("-i, --image <name>", "Specific Docker image to use")
+  .option("-n, --network <mode>", "Container network mode: bridge or none", "bridge")
   .action(async (options) => {
     let session;
 
@@ -91,12 +92,16 @@ program
         }
       }
 
-      console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount})...`));
+      console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount}, net: ${options.network})...`));
       if (options.mount === "rw") {
         console.log(chalk.yellow("⚠️  WARNING: Container has read/write access to your host files."));
       }
 
-      session = await createDockerSession(imageTag, options.mount as "ro" | "rw" | "none");
+      session = await createDockerSession(
+        imageTag,
+        options.mount as "ro" | "rw" | "none",
+        options.network as "bridge" | "none"
+      );
     }
 
     await runUp(session);

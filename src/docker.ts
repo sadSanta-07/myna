@@ -44,12 +44,12 @@ export async function buildImage(
 
 export async function startContainer(
   imageTag: string,
-  mountMode: "ro" | "rw" | "none" = "ro"
+  mountMode: "ro" | "rw" | "none" = "ro",
+  networkMode: "bridge" | "none" = "bridge"
 ): Promise<Docker.Container> {
 
   const binds = [];
   if (mountMode !== "none") {
-    // Binds the host's current directory to /workspace in the container
     binds.push(`${process.cwd()}:/workspace:${mountMode}`);
   }
 
@@ -62,7 +62,14 @@ export async function startContainer(
     WorkingDir: mountMode !== "none" ? "/workspace" : "/",
     HostConfig: {
       Binds: binds,
-    }
+      NetworkMode: networkMode,
+      Memory: 512 * 1024 * 1024,
+      MemorySwap: 512 * 1024 * 1024,
+      Nanocpus: 1000000000,
+      PidsLimit: 256,
+      SecurityOpt: ["no-new-privileges"],
+      CapDrop: ["ALL"],
+    } as any
   });
 
   await container.start();
@@ -93,9 +100,10 @@ export async function attachToContainer(container: Docker.Container): Promise<No
 
 export async function createDockerSession(
   imageTag: string,
-  mountMode: "ro" | "rw" | "none" = "ro"
+  mountMode: "ro" | "rw" | "none" = "ro",
+  networkMode: "bridge" | "none" = "bridge"
 ): Promise<Session> {
-  const container = await startContainer(imageTag, mountMode);
+  const container = await startContainer(imageTag, mountMode, networkMode);
   const stream = await attachToContainer(container);
 
   const dataCallbacks: ((data: string) => void)[] = [];

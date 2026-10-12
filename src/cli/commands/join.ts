@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { createPeerConnection } from "../peer.js";
+import { createPeerConnection } from "../../peer.js";
 import chalk from "chalk";
 
 export async function runJoin(code: string, requestedRole: string) {
