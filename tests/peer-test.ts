@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { createPeerConnection } from "./peer.js";
+import { createPeerConnection } from "../src/core/peer.js";
 
 const roomCode = process.argv[2];
 if (!roomCode) {

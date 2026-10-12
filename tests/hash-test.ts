@@ -1,4 +1,4 @@
-import { getImageHash } from "./docker.js";
+import { getImageHash } from "../src/core/docker.js";
 
 async function main() {
   const hash = await getImageHash("myna-test:latest");

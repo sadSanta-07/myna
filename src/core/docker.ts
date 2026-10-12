@@ -2,7 +2,7 @@ import Docker from "dockerode";
 import * as fs from "fs";
 import * as path from "path";
 import * as tar from "tar-fs";
-import { Session } from "./session-types.js";
+import { Session } from "./types.js";
 
 const docker = new Docker();
 

@@ -1,4 +1,4 @@
-import { listContainers, buildImage } from "./docker.js";
+import { listContainers, buildImage } from "../src/core/docker.js";
 
 async function main() {
   console.log("[docker] building image...");

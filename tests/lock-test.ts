@@ -1,4 +1,4 @@
-import { writeLockFile, verifyAgainstLockFile } from "./docker.js";
+import { writeLockFile, verifyAgainstLockFile } from "../src/core/docker.js";
 
 async function main() {
   const mode = process.argv[2];

@@ -13,7 +13,7 @@ const __dirname = dirname(__filename);
 export function startServer(port: number) {
     const app = express();
 
-    const publicPath = path.join(__dirname, "..", "public");
+    const publicPath = path.join(__dirname, "..", "..", "public");
     app.use(express.static(publicPath));
 
     const server = http.createServer(app);
@@ -181,7 +181,7 @@ export function startServer(port: number) {
     });
 }
 
-if (process.argv[1] && process.argv[1].endsWith("server.ts")) {
+if (process.argv[1] && (process.argv[1].endsWith("server.ts") || process.argv[1].endsWith("server.js"))) {
     const port = process.env.PORT ? parseInt(process.env.PORT) : 8080;
     startServer(port);
 }

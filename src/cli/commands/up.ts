@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { createPeerConnection } from "../../peer.js";
-import { Session } from "../../session-types.js";
+import { createPeerConnection } from "../../core/peer.js";
+import { Session } from "../../core/types.js";
 
 export async function runUp(session: Session) {
   const signalUrl = process.env.SIGNAL_URL || "wss://myna-ag89.onrender.com";

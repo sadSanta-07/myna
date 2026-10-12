@@ -1,6 +1,6 @@
 import WebSocket from "ws";
-import { createPeerConnection } from "./peer.js";
-import { createDockerSession } from "./docker.js";
+import { createPeerConnection } from "../src/core/peer.js";
+import { createDockerSession } from "../src/core/docker.js";
 
 const session = await createDockerSession("myna-test:latest");
 const ws = new WebSocket(process.env.SIGNAL_URL || "ws://localhost:8080");
