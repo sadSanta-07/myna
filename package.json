@@ -2,9 +2,10 @@
   "name": "myna-cli",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
-    "myna": "dist/index.js"
+    "myna": "dist/bin/myna.js"
   },
   "files": [
     "dist",
@@ -12,10 +13,10 @@
     "README.md"
   ],
   "scripts": {
-    "test": "tsx --test src/*.test.ts",
-    "dev": "tsx src/index.ts",
+    "test": "tsx --test tests/session.test.ts",
+    "dev": "tsx src/bin/myna.ts",
     "build": "tsc",
-    "signal": "tsx src/server.ts"
+    "signal": "tsx src/core/server.ts"
   },
   "keywords": [],
   "author": "",

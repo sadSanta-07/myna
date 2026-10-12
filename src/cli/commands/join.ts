@@ -1,5 +1,5 @@
 import WebSocket from "ws";
-import { createPeerConnection } from "../../peer.js";
+import { createPeerConnection } from "../../core/peer.js";
 import chalk from "chalk";
 
 export async function runJoin(code: string, requestedRole: string) {
@@ -23,20 +23,15 @@ export async function runJoin(code: string, requestedRole: string) {
       process.exit(1);
     }
 
-    if (msg.type === "join-pending") {
-      console.log(chalk.yellow("[myna] Waiting for host approval..."));
-    }
-    
+    if (msg.type === "join-pending") console.log(chalk.yellow("[myna] Waiting for host approval."));
     if (msg.type === "join-denied") {
       console.error(chalk.red("[myna] Host denied your join request."));
       process.exit(1);
     }
-    
     if (msg.type === "revoked") {
       console.error(chalk.red("\n[myna] Host revoked your access."));
       process.exit(0);
     }
-    
     if (msg.type === "host-left") {
       console.log(chalk.yellow("\n[myna] Host closed the session."));
       process.exit(0);
@@ -44,15 +39,12 @@ export async function runJoin(code: string, requestedRole: string) {
 
     if (msg.type === "joined") {
       console.log(chalk.green(`[myna] Joined as ${msg.role}. Establishing P2P connection...`));
-      
       const iceServers = msg.iceServers || [{ urls: "stun:stun.l.google.com:19302" }];
       const pc = createPeerConnection("peer", iceServers);
       let dc: RTCDataChannel;
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          ws.send(JSON.stringify({ type: "ice-candidate", candidate: event.candidate }));
-        }
+        if (event.candidate) ws.send(JSON.stringify({ type: "ice-candidate", candidate: event.candidate }));
       };
 
       pc.ondatachannel = (event) => {
@@ -65,25 +57,18 @@ export async function runJoin(code: string, requestedRole: string) {
             process.stdin.setEncoding("utf8");
           }
         };
-
         dc.onmessage = (e) => process.stdout.write(e.data);
-
         process.stdin.on("data", (data: string) => {
-          if (data.includes("\x1d")) { // Ctrl+]
+          if (data.includes("\x1d")) {
             console.log(chalk.yellow("\n[myna] Detached."));
             process.exit(0);
           }
-          if (dc.readyState === "open") {
-            dc.send(JSON.stringify({ type: "input", data }));
-          }
+          if (dc.readyState === "open") dc.send(JSON.stringify({ type: "input", data }));
         });
-
         process.stdout.on("resize", () => {
           const cols = process.stdout.columns;
           const rows = process.stdout.rows;
-          if (cols && rows && dc.readyState === "open") {
-            dc.send(JSON.stringify({ type: "resize", cols, rows }));
-          }
+          if (cols && rows && dc.readyState === "open") dc.send(JSON.stringify({ type: "resize", cols, rows }));
         });
       };
 
@@ -95,9 +80,7 @@ export async function runJoin(code: string, requestedRole: string) {
           await pc.setLocalDescription(answer);
           ws.send(JSON.stringify({ type: "sdp-answer", sdp: answer }));
         }
-        if (innerMsg.type === "ice-candidate") {
-          await pc.addIceCandidate(innerMsg.candidate);
-        }
+        if (innerMsg.type === "ice-candidate") await pc.addIceCandidate(innerMsg.candidate);
       });
     }
   });

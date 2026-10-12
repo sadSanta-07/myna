@@ -1,5 +1,5 @@
 import * as pty from "node-pty";
-import { Session } from "./session-types.js";
+import { Session } from "./types.js";
 
 export function createLocalSession(shellOverride?: string): Session {
   const shell = shellOverride || (process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash");

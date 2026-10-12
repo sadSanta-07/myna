@@ -33,8 +33,8 @@ export function createPeerConnection(role: "host" | "peer", customIceServers?: a
     ];
   }
 
-  const iceServers = (customIceServers && customIceServers.length > 0) 
-    ? customIceServers 
+  const iceServers = (customIceServers && customIceServers.length > 0)
+    ? customIceServers
     : defaultIceServers;
 
   const pc = new RTCPeerConnection({ iceServers });

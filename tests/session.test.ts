@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert";
-import { createLocalSession } from "./session.js";
+import { createLocalSession } from "../src/core/session.js";
 
 test("spwans a shell process with a valid pid", () => {
     const session = createLocalSession();
