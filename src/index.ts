@@ -10,6 +10,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { buildImage } from "./docker.js";
 import * as crypto from "crypto";
+import { startServer } from "./server.js";
 
 console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
@@ -108,6 +109,14 @@ program
   .action(async (code, options) => {
     console.log(chalk.blue(`[myna] Joining room ${code} as ${options.role}...`));
     await runJoin(code, options.role);
+  });
+
+program
+  .command("serve")
+  .description("Self-host the MYNA signaling server")
+  .option("-p, --port <number>", "Port to listen on", "8080")
+  .action((options) => {
+    startServer(parseInt(options.port));
   });
 
 program.parse(process.argv);
