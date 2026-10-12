@@ -3,12 +3,11 @@ import { Command } from "commander";
 import figlet from "figlet";
 import chalk from "chalk";
 import { createLocalSession } from "../core/session.js";
-import { createDockerSession, docker } from "../core/docker.js";
+import { createDockerSession, docker, buildImage } from "../core/docker.js";
 import { runUp } from "./commands/up.js";
 import { runJoin } from "./commands/join.js";
 import * as fs from "fs";
 import * as path from "path";
-import { buildImage } from "../core/docker.js";
 import * as crypto from "crypto";
 import { startServer } from "../core/server.js";
 
@@ -66,17 +65,16 @@ program
 
               const imageInfo = await docker.getImage(imageTag).inspect();
               const layers = imageInfo.RootFS.Layers;
-
               const rawHash = crypto.createHash("sha256").update(JSON.stringify(layers)).digest("hex");
               const actualHash = `sha256:${rawHash}`;
 
               if (actualHash === expectedHash) {
                 console.log(chalk.green("✅ Environment verified against myna.lock (No drift)"));
               } else {
-                console.log(chalk.yellow(`\n⚠️ WARNING: Environment drift detected!`));
+                console.log(chalk.yellow("\n⚠️ WARNING: Environment drift detected!"));
                 console.log(chalk.yellow(`   Expected: ${expectedHash.slice(0, 19)}...`));
                 console.log(chalk.yellow(`   Actual:   ${actualHash.slice(0, 19)}...`));
-                console.log(chalk.yellow(`   The container built successfully, but it differs from the lockfile.\n`));
+                console.log(chalk.yellow("   The container built successfully, but it differs from the lockfile.\n"));
               }
             } else {
               console.log(chalk.gray("[myna] No myna.lock found. Skipping reproducibility check."));
