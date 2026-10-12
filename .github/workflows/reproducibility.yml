@@ -22,4 +22,4 @@ jobs:
         run: docker build -t myna-test:latest .
 
       - name: Verify against lock file
-        run: npx tsx src/lock-test.ts verify
+        run: npx tsx tests/lock-test.ts verify
