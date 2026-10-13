@@ -1,0 +1,16 @@
+name = "myna-cloudflare-signal"
+main = "cloudflare/worker.ts"
+compatibility_date = "2026-10-13"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[durable_objects.bindings]]
+name = "MYNA_ROOMS"
+class_name = "MynaRooms"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MynaRooms"]
