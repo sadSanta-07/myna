@@ -3,14 +3,14 @@ import { createPeerConnection } from "../../core/peer.js";
 import chalk from "chalk";
 
 export async function runJoin(code: string, requestedRole: string) {
-  const signalUrl = process.env.SIGNAL_URL || "wss://myna-ag89.onrender.com";
+  const signalUrl = process.env.SIGNAL_URL || "wss://myna-cloudflare-signal.iffcogc34.workers.dev";
   const ws = new WebSocket(signalUrl);
 
   ws.on("error", () => {
     console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalUrl}`);
     process.exit(1);
   });
-  
+
   ws.on("open", () => {
     ws.send(JSON.stringify({ type: "join-room", code, requestedRole }));
   });
@@ -26,17 +26,17 @@ export async function runJoin(code: string, requestedRole: string) {
     if (msg.type === "join-pending") {
       console.log(chalk.yellow("[myna] Waiting for host approval..."));
     }
-    
+
     if (msg.type === "join-denied") {
       console.error(chalk.red("[myna] Host denied your join request."));
       process.exit(1);
     }
-    
+
     if (msg.type === "revoked") {
       console.error(chalk.red("\n[myna] Host revoked your access."));
       process.exit(0);
     }
-    
+
     if (msg.type === "host-left") {
       console.log(chalk.yellow("\n[myna] Host closed the session."));
       process.exit(0);
@@ -44,7 +44,7 @@ export async function runJoin(code: string, requestedRole: string) {
 
     if (msg.type === "joined") {
       console.log(chalk.green(`[myna] Joined as ${msg.role}. Establishing P2P connection...`));
-      
+
       const iceServers = msg.iceServers || [{ urls: "stun:stun.l.google.com:19302" }];
       const pc = createPeerConnection("peer", iceServers);
       let dc: RTCDataChannel;

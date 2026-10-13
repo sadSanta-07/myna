@@ -83,10 +83,25 @@ program
             process.exit(1);
           }
         } else {
-          console.error(chalk.red("\n❌ Error: No Dockerfile found in current directory."));
-          console.error(chalk.yellow("Tip: Create a Dockerfile, or use `-i ubuntu:22.04` (make sure to `docker pull` it first).\n"));
-          process.exit(1);
+          imageTag = "ubuntu:22.04";
+          console.log(chalk.cyan("[myna] No Dockerfile found. Defaulting to standard sandbox (ubuntu:22.04)..."));
         }
+      }
+
+      try {
+        await docker.getImage(imageTag).inspect();
+      } catch (e) {
+        console.log(chalk.yellow(`[myna] Image '${imageTag}' not found locally. Pulling image from Docker Hub...`));
+        await new Promise<void>((resolve, reject) => {
+          docker.pull(imageTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
+            if (err) return reject(err);
+            docker.modem.followProgress(stream, (err) => {
+              if (err) return reject(err);
+              resolve();
+            });
+          });
+        });
+        console.log(chalk.green(`[myna] Successfully pulled ${imageTag}`));
       }
 
       console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount}, net: ${options.network})...`));

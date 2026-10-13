@@ -3,7 +3,7 @@ import { createPeerConnection } from "../../core/peer.js";
 import { Session } from "../../core/types.js";
 
 export async function runUp(session: Session) {
-  const signalUrl = process.env.SIGNAL_URL || "wss://myna-ag89.onrender.com";
+  const signalUrl = process.env.SIGNAL_URL || "wss://myna-cloudflare-signal.iffcogc34.workers.dev";
   const ws = new WebSocket(signalUrl);
 
   ws.on("error", () => {
