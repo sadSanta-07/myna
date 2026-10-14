@@ -21,16 +21,17 @@ program
 
 program
   .command("up")
-  .description("Start a shared terminal session and generate a join link")
-  .option("--local", "Run on the bare-metal host using node-pty instead of Docker")
-  .option("-m, --mount <mode>", "Workspace mount mode: ro, rw, or none", "ro")
-  .option("-i, --image <name>", "Specific Docker image to use")
-  .option("-n, --network <mode>", "Container network mode: bridge or none", "bridge")
+  .description("Start a shared native terminal session and generate a join link")
+  .option("-s, --sandbox", "Run inside an isolated Docker container instead of local shell")
+  .option("-m, --mount <mode>", "Workspace mount mode for sandbox: ro, rw, or none", "ro")
+  .option("-i, --image <name>", "Specific Docker image to use for sandbox")
+  .option("-n, --network <mode>", "Container network mode for sandbox: bridge or none", "bridge")
+  .option("--local", "Deprecated alias for native mode", false)
   .action(async (options) => {
     let session;
 
-    if (options.local) {
-      console.log(chalk.yellow("[myna] Starting in --local mode. Host filesystem is exposed."));
+    if (!options.sandbox) {
+      console.log(chalk.green("[myna] Starting native P2P shell session..."));
       session = createLocalSession();
     } else {
       try {
@@ -49,49 +50,20 @@ program
           console.log(chalk.blue("[myna] Found Dockerfile. Building project environment..."));
           try {
             await buildImage(imageTag, process.cwd());
-
-            const lockPath = path.join(process.cwd(), "myna.lock");
-            if (fs.existsSync(lockPath)) {
-              const lockFileContent = fs.readFileSync(lockPath, "utf-8");
-              let expectedHash = "";
-
-              try {
-                const lockData = JSON.parse(lockFileContent);
-                expectedHash = lockData.hash;
-              } catch (e) {
-                expectedHash = lockFileContent.trim();
-              }
-
-              const imageInfo = await docker.getImage(imageTag).inspect();
-              const layers = imageInfo.RootFS.Layers;
-              const rawHash = crypto.createHash("sha256").update(JSON.stringify(layers)).digest("hex");
-              const actualHash = `sha256:${rawHash}`;
-
-              if (actualHash === expectedHash) {
-                console.log(chalk.green("✅ Environment verified against myna.lock (No drift)"));
-              } else {
-                console.log(chalk.yellow("\n⚠️ WARNING: Environment drift detected!"));
-                console.log(chalk.yellow(`   Expected: ${expectedHash.slice(0, 19)}...`));
-                console.log(chalk.yellow(`   Actual:   ${actualHash.slice(0, 19)}...`));
-                console.log(chalk.yellow("   The container built successfully, but it differs from the lockfile.\n"));
-              }
-            } else {
-              console.log(chalk.gray("[myna] No myna.lock found. Skipping reproducibility check."));
-            }
           } catch (err) {
             console.error(chalk.red(`\n❌ Error: Docker build failed - ${(err as Error).message}`));
             process.exit(1);
           }
         } else {
           imageTag = "ubuntu:22.04";
-          console.log(chalk.cyan("[myna] No Dockerfile found. Defaulting to standard sandbox (ubuntu:22.04)..."));
+          console.log(chalk.cyan("[myna] No Dockerfile found. Defaulting to sandbox image (ubuntu:22.04)..."));
         }
       }
 
       try {
         await docker.getImage(imageTag).inspect();
       } catch (e) {
-        console.log(chalk.yellow(`[myna] Image '${imageTag}' not found locally. Pulling image from Docker Hub...`));
+        console.log(chalk.yellow(`[myna] Image '${imageTag}' not found locally. Pulling from Docker Hub...`));
         await new Promise<void>((resolve, reject) => {
           docker.pull(imageTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
             if (err) return reject(err);
@@ -101,14 +73,9 @@ program
             });
           });
         });
-        console.log(chalk.green(`[myna] Successfully pulled ${imageTag}`));
       }
 
       console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount}, net: ${options.network})...`));
-      if (options.mount === "rw") {
-        console.log(chalk.yellow("⚠️  WARNING: Container has read/write access to your host files."));
-      }
-
       session = await createDockerSession(
         imageTag,
         options.mount as "ro" | "rw" | "none",

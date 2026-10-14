@@ -1,7 +1,8 @@
 export interface Session {
-  onData(callback: (data: string) => void): void;
+  backend: "native" | "docker";
   write(data: string): void;
   resize(cols: number, rows: number): void;
-  kill(): Promise<void> | void;
-  onExit(callback: (info: { exitCode: number }) => void): void;
+  onData(cb: (data: string) => void): void;
+  onExit(cb: (code: number) => void): void;
+  kill(): void;
 }

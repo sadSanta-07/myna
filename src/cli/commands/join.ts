@@ -1,9 +1,10 @@
 import WebSocket from "ws";
 import { createPeerConnection } from "../../core/peer.js";
+import { getSignalUrl } from "../../core/config.js";
 import chalk from "chalk";
 
 export async function runJoin(code: string, requestedRole: string) {
-  const signalUrl = process.env.SIGNAL_URL || "wss://myna-cloudflare-signal.iffcogc34.workers.dev";
+  const signalUrl = getSignalUrl();
   const ws = new WebSocket(signalUrl);
 
   ws.on("error", () => {
@@ -46,7 +47,7 @@ export async function runJoin(code: string, requestedRole: string) {
       console.log(chalk.green(`[myna] Joined as ${msg.role}. Establishing P2P connection...`));
 
       const iceServers = msg.iceServers || [{ urls: "stun:stun.l.google.com:19302" }];
-      const pc = createPeerConnection("peer", iceServers);
+      const pc = createPeerConnection("guest", msg.iceServers);
       let dc: RTCDataChannel;
 
       pc.onicecandidate = (event) => {

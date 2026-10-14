@@ -100,8 +100,8 @@ export async function attachToContainer(container: Docker.Container): Promise<No
 
 export async function createDockerSession(
   imageTag: string,
-  mountMode: "ro" | "rw" | "none" = "ro",
-  networkMode: "bridge" | "none" = "bridge"
+  mountMode: "ro" | "rw" | "none",
+  networkMode: "bridge" | "none"
 ): Promise<Session> {
   const container = await startContainer(imageTag, mountMode, networkMode);
   const stream = await attachToContainer(container);
@@ -126,17 +126,12 @@ export async function createDockerSession(
   });
 
   return {
-    onData: (callback) => dataCallbacks.push(callback),
-    write: (data) => stream.write(data),
-    resize: (cols, rows) => container.resize({ h: rows, w: cols }).catch(() => { }),
-    kill: async () => {
-      try {
-        await container.remove({ force: true });
-      } catch {
-        //ignore
-      }
-    },
-    onExit: (callback) => exitCallbacks.push(callback),
+    backend: "docker",
+    write: (data: string) => stream.write(data),
+    resize: (cols: number, rows: number) => container.resize({ w: cols, h: rows }),
+    onData: (cb: (data: string) => void) => stream.on("data", (chunk: Buffer) => cb(chunk.toString("utf8"))),
+    onExit: (cb: (code: number) => void) => container.wait().then((res) => cb(res.StatusCode)),
+    kill: () => container.kill(),
   };
 }
 

@@ -14,10 +14,11 @@ export function createLocalSession(shellOverride?: string): Session {
   });
 
   return {
-    onData: (callback) => ptyProcess.onData(callback),
-    write: (data) => ptyProcess.write(data),
-    resize: (cols, rows) => ptyProcess.resize(cols, rows),
+    backend: "native",
+    write: (data: string) => ptyProcess.write(data),
+    resize: (cols: number, rows: number) => ptyProcess.resize(cols, rows),
+    onData: (cb: (data: string) => void) => ptyProcess.onData(cb),
+    onExit: (cb: (code: number) => void) => ptyProcess.onExit(({ exitCode }) => cb(exitCode)),
     kill: () => ptyProcess.kill(),
-    onExit: (callback) => ptyProcess.onExit(({ exitCode }) => callback({ exitCode })),
   };
 }
