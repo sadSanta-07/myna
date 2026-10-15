@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as crypto from "crypto";
 import { startServer } from "../core/server.js";
+import { execSync } from "child_process";
 
 console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
@@ -31,6 +32,8 @@ program
   .action(async (options) => {
     let session;
 
+    const upOptions = { noReplay: options.noReplay };
+
     if (!options.sandbox) {
       console.log(chalk.green("[myna] Starting native P2P shell session..."));
       session = createLocalSession();
@@ -48,6 +51,21 @@ program
         const hasDockerfile = fs.existsSync(path.join(process.cwd(), "Dockerfile"));
         if (hasDockerfile) {
           imageTag = "myna-workspace:latest";
+          
+          const hasLockFile = fs.existsSync(path.join(process.cwd(), "myna.lock"));
+          if (hasLockFile) {
+            console.log(chalk.blue("[myna] Found myna.lock. Verifying sandbox reproducibility..."));
+            try {
+              execSync("npx tsx tests/lock-test.ts verify", { stdio: "inherit" });
+              console.log(chalk.green("[myna] Sandbox verified against lockfile."));
+            } catch (err) {
+              console.error(chalk.red("\n❌ Error: Sandbox lockfile verification failed (myna.lock)."));
+              console.error(chalk.yellow("The Dockerfile or build context does not match the pinned lockfile."));
+              process.exit(1);
+            }
+          } else {
+            console.log(chalk.yellow("[myna] No myna.lock found. Skipping reproducibility check."));
+          }
           console.log(chalk.blue("[myna] Found Dockerfile. Building project environment..."));
           try {
             await buildImage(imageTag, process.cwd());
@@ -84,7 +102,7 @@ program
       );
     }
 
-    await runUp(session);
+    await runUp(session, upOptions);
   });
 
 program
