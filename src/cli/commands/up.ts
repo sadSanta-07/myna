@@ -20,7 +20,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   try {
     const res = await fetch(`${signalHttpUrl}/new`, { method: "POST" });
     if (!res.ok) throw new Error("Failed to provision room");
-    const data = await (res.json() as Promise<{code: string}>);
+    const data = await (res.json() as Promise<{ code: string }>);
     roomCode = data.code;
   } catch (err) {
     console.error(`\n❌ Error: Cannot provision room from MYNA signaling server at ${signalHttpUrl}`);
@@ -59,14 +59,19 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   });
   gateServer.listen(41234, "127.0.0.1");
 
-  if (process.platform === "win32") {
-    const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
-    if (fs.existsSync(hookPath)) {
-      setTimeout(() => {
+  setTimeout(() => {
+    if (process.platform === "win32") {
+      const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
+      if (fs.existsSync(hookPath)) {
         session.write(`. "${hookPath}"\r`);
-      }, 300);
+      }
+    } else {
+      const hookPath = path.resolve(process.cwd(), "myna-hook.sh");
+      if (fs.existsSync(hookPath)) {
+        session.write(`source "${hookPath}"\n`);
+      }
     }
-  }
+  }, 300);
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
@@ -232,7 +237,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
       for (const peer of activePeers.values()) {
         if (peer.controlDc && peer.controlDc.readyState === "open") {
-          try { peer.controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch {}
+          try { peer.controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
         }
       }
     }
@@ -289,7 +294,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
           const cols = process.stdout.columns;
           const rows = process.stdout.rows;
           if (cols && rows) {
-            try { controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch {}
+            try { controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
           }
         };
 

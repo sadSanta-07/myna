@@ -10,6 +10,7 @@ import * as path from "path";
 import * as crypto from "crypto";
 import { startServer } from "../core/server.js";
 import { execSync } from "child_process";
+import { createBwrapSession } from "../core/bwrap.js";
 
 console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
 
@@ -23,83 +24,102 @@ program
 program
   .command("up")
   .description("Start a shared native terminal session and generate a join link")
-  .option("-s, --sandbox", "Run inside an isolated Docker container instead of local shell")
+  .option("-s, --sandbox [engine]", "Run in a sandbox (docker or bwrap)")
+  .option("-m, --mount <mode>", "Workspace mount mode for sandbox (ro, rw, none)", "ro")
   .option("--no-replay", "Do not send terminal history to new guests")
-  .option("-m, --mount <mode>", "Workspace mount mode for sandbox: ro, rw, or none", "ro")
   .option("-i, --image <name>", "Specific Docker image to use for sandbox")
   .option("-n, --network <mode>", "Container network mode for sandbox: bridge or none", "bridge")
   .option("--local", "Deprecated alias for native mode", false)
   .action(async (options) => {
     let session;
-
     const upOptions = { noReplay: options.noReplay };
 
     if (!options.sandbox) {
       console.log(chalk.green("[myna] Starting native P2P shell session..."));
       session = createLocalSession();
     } else {
-      try {
-        await docker.ping();
-      } catch (err) {
-        console.error(chalk.red("\n❌ Error: Cannot connect to the Docker daemon."));
-        process.exit(1);
+      const engine = options.sandbox === true ? "docker" : options.sandbox.toLowerCase();
+
+      if (options.mount === "rw") {
+        console.warn(chalk.yellow("⚠️  WARNING: You are running the sandbox in READ-WRITE mode (-m rw)."));
+        console.warn(chalk.yellow("   A guest could modify or delete files in your local project directory."));
+        console.warn(chalk.yellow("   Use -m ro (Read-Only) if you do not want the guest modifying host files.\n"));
       }
 
-      let imageTag = options.image;
+      if (engine === "bwrap") {
+        if (process.platform !== "linux") {
+          console.error(chalk.red("❌ Error: bubblewrap (--sandbox bwrap) is only supported on Linux."));
+          process.exit(1);
+        }
+        console.log(chalk.green(`[myna] Starting bubblewrap sandbox (mount: ${options.mount}, net: ${options.network})...`));
+        session = await createBwrapSession(
+          options.mount as "ro" | "rw" | "none",
+          options.network as "bridge" | "none"
+        );
+      } else {
+        try {
+          await docker.ping();
+        } catch (err) {
+          console.error(chalk.red("\n❌ Error: Cannot connect to the Docker daemon."));
+          process.exit(1);
+        }
 
-      if (!imageTag) {
-        const hasDockerfile = fs.existsSync(path.join(process.cwd(), "Dockerfile"));
-        if (hasDockerfile) {
-          imageTag = "myna-workspace:latest";
-          
-          const hasLockFile = fs.existsSync(path.join(process.cwd(), "myna.lock"));
-          if (hasLockFile) {
-            console.log(chalk.blue("[myna] Found myna.lock. Verifying sandbox reproducibility..."));
+        let imageTag = options.image;
+
+        if (!imageTag) {
+          const hasDockerfile = fs.existsSync(path.join(process.cwd(), "Dockerfile"));
+          if (hasDockerfile) {
+            imageTag = "myna-workspace:latest";
+
+            const hasLockFile = fs.existsSync(path.join(process.cwd(), "myna.lock"));
+            if (hasLockFile) {
+              console.log(chalk.blue("[myna] Found myna.lock. Verifying sandbox reproducibility..."));
+              try {
+                execSync("npx tsx tests/lock-test.ts verify", { stdio: "inherit" });
+                console.log(chalk.green("[myna] Sandbox verified against lockfile."));
+              } catch (err) {
+                console.error(chalk.red("\n❌ Error: Sandbox lockfile verification failed (myna.lock)."));
+                console.error(chalk.yellow("The Dockerfile or build context does not match the pinned lockfile."));
+                process.exit(1);
+              }
+            } else {
+              console.log(chalk.yellow("[myna] No myna.lock found. Skipping reproducibility check."));
+            }
+            console.log(chalk.blue("[myna] Found Dockerfile. Building project environment..."));
             try {
-              execSync("npx tsx tests/lock-test.ts verify", { stdio: "inherit" });
-              console.log(chalk.green("[myna] Sandbox verified against lockfile."));
+              await buildImage(imageTag, process.cwd());
             } catch (err) {
-              console.error(chalk.red("\n❌ Error: Sandbox lockfile verification failed (myna.lock)."));
-              console.error(chalk.yellow("The Dockerfile or build context does not match the pinned lockfile."));
+              console.error(chalk.red(`\n❌ Error: Docker build failed - ${(err as Error).message}`));
               process.exit(1);
             }
           } else {
-            console.log(chalk.yellow("[myna] No myna.lock found. Skipping reproducibility check."));
+            imageTag = "ubuntu:22.04";
+            console.log(chalk.cyan("[myna] No Dockerfile found. Defaulting to sandbox image (ubuntu:22.04)..."));
           }
-          console.log(chalk.blue("[myna] Found Dockerfile. Building project environment..."));
-          try {
-            await buildImage(imageTag, process.cwd());
-          } catch (err) {
-            console.error(chalk.red(`\n❌ Error: Docker build failed - ${(err as Error).message}`));
-            process.exit(1);
-          }
-        } else {
-          imageTag = "ubuntu:22.04";
-          console.log(chalk.cyan("[myna] No Dockerfile found. Defaulting to sandbox image (ubuntu:22.04)..."));
         }
-      }
 
-      try {
-        await docker.getImage(imageTag).inspect();
-      } catch (e) {
-        console.log(chalk.yellow(`[myna] Image '${imageTag}' not found locally. Pulling from Docker Hub...`));
-        await new Promise<void>((resolve, reject) => {
-          docker.pull(imageTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
-            if (err) return reject(err);
-            docker.modem.followProgress(stream, (err) => {
+        try {
+          await docker.getImage(imageTag).inspect();
+        } catch (e) {
+          console.log(chalk.yellow(`[myna] Image '${imageTag}' not found locally. Pulling from Docker Hub...`));
+          await new Promise<void>((resolve, reject) => {
+            docker.pull(imageTag, (err: Error | null, stream: NodeJS.ReadableStream) => {
               if (err) return reject(err);
-              resolve();
+              docker.modem.followProgress(stream, (err) => {
+                if (err) return reject(err);
+                resolve();
+              });
             });
           });
-        });
-      }
+        }
 
-      console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount}, net: ${options.network})...`));
-      session = await createDockerSession(
-        imageTag,
-        options.mount as "ro" | "rw" | "none",
-        options.network as "bridge" | "none"
-      );
+        console.log(chalk.green(`[myna] Starting Docker sandbox (mount: ${options.mount}, net: ${options.network})...`));
+        session = await createDockerSession(
+          imageTag,
+          options.mount as "ro" | "rw" | "none",
+          options.network as "bridge" | "none"
+        );
+      }
     }
 
     await runUp(session, upOptions);

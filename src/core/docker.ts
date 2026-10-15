@@ -47,8 +47,8 @@ export async function startContainer(
   mountMode: "ro" | "rw" | "none" = "ro",
   networkMode: "bridge" | "none" = "bridge"
 ): Promise<Docker.Container> {
-
   const binds = [];
+
   if (mountMode !== "none") {
     binds.push(`${process.cwd()}:/workspace:${mountMode}`);
   }
@@ -66,8 +66,8 @@ export async function startContainer(
       Memory: 512 * 1024 * 1024,
       MemorySwap: 512 * 1024 * 1024,
       Nanocpus: 1000000000,
-      PidsLimit: 256,
-      SecurityOpt: ["no-new-privileges"],
+      PidsLimit: 100,
+      SecurityOpt: ["no-new-privileges:true"],
       CapDrop: ["ALL"],
     } as any
   });
