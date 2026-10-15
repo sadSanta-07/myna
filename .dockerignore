@@ -1,0 +1,8 @@
+# .dockerignore
+.git
+.env*
+node_modules/
+dist/
+.wrangler/
+frontend/
+myna.lock
