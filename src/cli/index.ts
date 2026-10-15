@@ -23,6 +23,7 @@ program
   .command("up")
   .description("Start a shared native terminal session and generate a join link")
   .option("-s, --sandbox", "Run inside an isolated Docker container instead of local shell")
+  .option("--no-replay", "Do not send terminal history to new guests")
   .option("-m, --mount <mode>", "Workspace mount mode for sandbox: ro, rw, or none", "ro")
   .option("-i, --image <name>", "Specific Docker image to use for sandbox")
   .option("-n, --network <mode>", "Container network mode for sandbox: bridge or none", "bridge")

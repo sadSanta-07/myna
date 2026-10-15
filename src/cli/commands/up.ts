@@ -9,7 +9,7 @@ let guestLineBuffer = "";
 interface GuardrailRequest { peerId: string; cmd: string; }
 let pendingGuardrail: GuardrailRequest | null = null;
 
-export async function runUp(session: Session) {
+export async function runUp(session: Session, options: { noReplay?: boolean } = {}) {
   const signalUrl = getSignalUrl();
   const ws = new WebSocket(signalUrl);
 
@@ -20,7 +20,7 @@ export async function runUp(session: Session) {
         process.stdin.pause();
       } catch { }
     }
-    
+
     try {
       session.kill();
     } catch { }
@@ -225,7 +225,11 @@ export async function runUp(session: Session) {
         dc.onopen = () => {
           console.log(`\n[myna] data channel open for ${peerId.slice(0, 4)}`);
           peerSession.channelOpen = true;
-          if (outputHistory) {
+          try {
+            dc.send("\r\n\x1b[33m⚠️  [myna] Notice: Your input in this session is being audited and logged by the host.\x1b[0m\r\n");
+          } catch { }
+
+          if (outputHistory && !options.noReplay) {
             try { dc.send(outputHistory); } catch { }
           }
         };
