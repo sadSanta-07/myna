@@ -10,8 +10,21 @@ interface GuardrailRequest { peerId: string; cmd: string; }
 let pendingGuardrail: GuardrailRequest | null = null;
 
 export async function runUp(session: Session, options: { noReplay?: boolean } = {}) {
-  const signalUrl = getSignalUrl();
-  const ws = new WebSocket(signalUrl);
+  const signalWsUrl = getSignalUrl();
+  const signalHttpUrl = signalWsUrl.replace(/^ws/, "http");
+
+  let roomCode = "";
+  try {
+    const res = await fetch(`${signalHttpUrl}/new`, { method: "POST" });
+    if (!res.ok) throw new Error("Failed to provision room");
+    const data = await (res.json() as Promise<{ code: string }>);
+    roomCode = data.code;
+  } catch (err) {
+    console.error(`\n❌ Error: Cannot provision room from MYNA signaling server at ${signalHttpUrl}`);
+    console.error("Please check your internet connection or try again later.\n");
+    process.exit(1);
+  }
+  const ws = new WebSocket(`${signalWsUrl}/room/${roomCode}`);
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
@@ -36,7 +49,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   });
 
   ws.on("error", () => {
-    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalUrl}`);
+    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalWsUrl}`);
     console.error("Please check your internet connection or try again later.\n");
     restoreTerminalAndExit(1);
   });
