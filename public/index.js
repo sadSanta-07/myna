@@ -3,41 +3,28 @@ const setupEl = document.getElementById('setup');
 const terminalWrapEl = document.getElementById('terminal-wrap');
 const terminalEl = document.getElementById('terminal');
 
+const SIGNAL_URL = "wss://myna-cloudflare-signal.iffcogc34.workers.dev";
+
 let ws, pc, dc, term, fitAddon;
 
 let roomCode = "";
 let role = "";
 
 if (window.location.hash) {
-    document.getElementById('roomCode').value =
-        window.location.hash.substring(1);
+    document.getElementById('roomCode').value = window.location.hash.substring(1);
 }
 
 function log(msg) {
     statusEl.innerText = msg;
-
     const lower = String(msg).toLowerCase();
 
-    if (
-        lower.includes('error') ||
-        lower.includes('denied') ||
-        lower.includes('revoked')
-    ) {
+    if (lower.includes('error') || lower.includes('denied') || lower.includes('revoked')) {
         statusEl.dataset.state = 'error';
-    } else if (
-        lower.includes('connect') ||
-        lower.includes('requesting')
-    ) {
+    } else if (lower.includes('connect') || lower.includes('requesting')) {
         statusEl.dataset.state = 'connecting';
-    } else if (
-        lower.includes('waiting') ||
-        lower.includes('pending')
-    ) {
+    } else if (lower.includes('waiting') || lower.includes('pending')) {
         statusEl.dataset.state = 'waiting';
-    } else if (
-        lower.includes('live') ||
-        lower.includes('joined')
-    ) {
+    } else if (lower.includes('live') || lower.includes('joined')) {
         statusEl.dataset.state = 'connected';
     } else {
         statusEl.dataset.state = 'ready';
@@ -58,14 +45,10 @@ async function joinRoom() {
 
     log("Connecting to signaling server...");
 
-    const protocol =
-        window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-
-    ws = new WebSocket(`${protocol}//${window.location.host}`);
+    ws = new WebSocket(SIGNAL_URL);
 
     ws.onopen = () => {
         log("Requesting to join room...");
-
         ws.send(JSON.stringify({
             type: "join-room",
             code: roomCode,
@@ -74,71 +57,76 @@ async function joinRoom() {
     };
 
     ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data);
+        try {
+            const msg = JSON.parse(event.data);
+            console.log("Received:", msg.type);
 
-        console.log("Received:", msg.type);
+            if (msg.type === "error") {
+                log(`Error: ${msg.message}`);
+            }
 
-        if (msg.type === "error") {
-            log(`Error: ${msg.message}`);
-        }
+            if (msg.type === "join-pending") {
+                log("Waiting for host to approve...");
+            }
 
-        if (msg.type === "join-pending") {
-            log("Waiting for host to approve...");
-        }
+            if (msg.type === "join-denied") {
+                log("Host denied your request.");
+            }
 
-        if (msg.type === "join-denied") {
-            log("Host denied your request.");
-        }
+            if (msg.type === "revoked") {
+                log("Host revoked your access.");
+                if (dc) dc.close();
+                if (pc) pc.close();
+            }
 
-        if (msg.type === "revoked") {
-            log("Host revoked your access.");
-        }
+            if (msg.type === "host-left") {
+                log("Host closed the session.");
+                if (dc) dc.close();
+                if (pc) pc.close();
+            }
 
-        if (msg.type === "host-left") {
-            log("Host closed the session.");
-        }
+            if (msg.type === "joined") {
+                log(`Joined as ${msg.role}. Establishing P2P connection...`);
+                role = msg.role;
 
-        if (msg.type === "joined") {
-            log(`Joined as ${msg.role}. Establishing P2P connection...`);
+                pc = new RTCPeerConnection({
+                    iceServers: msg.iceServers || [
+                        { urls: "stun:stun.l.google.com:19302" }
+                    ]
+                });
 
-            pc = new RTCPeerConnection({
-                iceServers: msg.iceServers || [
-                    {
-                        urls: "stun:stun.l.google.com:19302"
+                pc.onicecandidate = (e) => {
+                    if (e.candidate) {
+                        ws.send(JSON.stringify({
+                            type: "ice-candidate",
+                            candidate: e.candidate
+                        }));
                     }
-                ]
-            });
+                };
 
-            pc.onicecandidate = (e) => {
-                if (e.candidate) {
-                    ws.send(JSON.stringify({
-                        type: "ice-candidate",
-                        candidate: e.candidate
-                    }));
-                }
-            };
+                pc.ondatachannel = (e) => {
+                    dc = e.channel;
+                    dc.onopen = () => {
+                        setupTerminal();
+                    };
+                };
+            }
 
-            pc.ondatachannel = (e) => {
-                dc = e.channel;
-                setupTerminal();
-            };
-        }
+            if (msg.type === "sdp-offer") {
+                await pc.setRemoteDescription(msg.sdp);
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                ws.send(JSON.stringify({
+                    type: "sdp-answer",
+                    sdp: answer
+                }));
+            }
 
-        if (msg.type === "sdp-offer") {
-            await pc.setRemoteDescription(msg.sdp);
-
-            const answer = await pc.createAnswer();
-
-            await pc.setLocalDescription(answer);
-
-            ws.send(JSON.stringify({
-                type: "sdp-answer",
-                sdp: answer
-            }));
-        }
-
-        if (msg.type === "ice-candidate") {
-            await pc.addIceCandidate(msg.candidate);
+            if (msg.type === "ice-candidate") {
+                await pc.addIceCandidate(msg.candidate);
+            }
+        } catch (err) {
+            console.error("Signaling error:", err);
         }
     };
 }
@@ -147,7 +135,6 @@ function setupTerminal() {
     log("Connected! Terminal live.");
 
     terminalWrapEl.style.display = 'block';
-
     document.getElementById('terminal-mode').textContent =
         role === 'control'
             ? 'Control enabled · Read / Write'
@@ -155,13 +142,11 @@ function setupTerminal() {
 
     term = new Terminal({
         cursorBlink: true,
-        fontFamily:
-            '"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontFamily: '"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: 13,
         lineHeight: 1.45,
         convertEol: true,
         scrollback: 5000,
-
         theme: {
             background: '#080908',
             foreground: '#e8ebe4',
@@ -175,10 +160,12 @@ function setupTerminal() {
     });
 
     fitAddon = new FitAddon.FitAddon();
-
     term.loadAddon(fitAddon);
     term.open(terminalEl);
     fitAddon.fit();
+
+    term.writeln("\x1b[32m[myna] P2P Terminal stream connected directly to host.\x1b[0m");
+    term.writeln("\x1b[33m[myna] Note: This session is being audited by the host.\x1b[0m\r\n");
 
     dc.onmessage = (e) => {
         term.write(e.data);
@@ -195,7 +182,6 @@ function setupTerminal() {
 
     window.addEventListener('resize', () => {
         fitAddon.fit();
-
         if (dc.readyState === "open" && role === "control") {
             dc.send(JSON.stringify({
                 type: "resize",

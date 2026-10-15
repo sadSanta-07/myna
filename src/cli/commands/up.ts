@@ -2,6 +2,12 @@ import WebSocket from "ws";
 import { createPeerConnection } from "../../core/peer.js";
 import { Session } from "../../core/types.js";
 import { getSignalUrl, getShareDomain } from "../../core/config.js";
+import { logGuestInput } from "../../core/audit.js";
+import { isDangerousCommand } from "../../core/guardrail.js";
+
+let guestLineBuffer = "";
+interface GuardrailRequest { peerId: string; cmd: string; }
+let pendingGuardrail: GuardrailRequest | null = null;
 
 export async function runUp(session: Session) {
   const signalUrl = getSignalUrl();
@@ -12,7 +18,7 @@ export async function runUp(session: Session) {
       try {
         process.stdin.setRawMode(false);
         process.stdin.pause();
-      } catch {}
+      } catch { }
     }
     process.exit(code);
   }
@@ -76,6 +82,7 @@ export async function runUp(session: Session) {
     process.stdin.setEncoding("utf8");
 
     process.stdin.on("data", (key: string) => {
+      // Leader Key Trigger
       if (key === "\x01") {
         leaderActive = true;
         return;
@@ -84,6 +91,21 @@ export async function runUp(session: Session) {
       if (leaderActive) {
         leaderActive = false;
         const cmd = key.toLowerCase();
+
+        if (pendingGuardrail) {
+          if (cmd === "y") {
+            console.log(`\n[myna] Allowed: ${pendingGuardrail.cmd}`);
+            session.write("\r");
+            isFrozen = false;
+            pendingGuardrail = null;
+          } else if (cmd === "n") {
+            console.log(`\n[myna] Blocked: ${pendingGuardrail.cmd}`);
+            session.write("\x03");
+            isFrozen = false;
+            pendingGuardrail = null;
+          }
+          return;
+        }
 
         if (currentRequest) {
           const peerId = currentRequest.peerId;
@@ -100,12 +122,14 @@ export async function runUp(session: Session) {
           return;
         }
 
+        // Freeze Toggle
         if (cmd === "f") {
           isFrozen = !isFrozen;
           console.log(`\n[myna] Session ${isFrozen ? "FROZEN (guest input paused)" : "UNFROZEN (guest input active)"}`);
           return;
         }
 
+        // Revoke All
         if (cmd === "x") {
           console.log("\n[myna] Revoking all active peers...");
           for (const [peerId, peer] of activePeers.entries()) {
@@ -214,6 +238,27 @@ export async function runUp(session: Session) {
               return;
             }
             if (m.type === "input" && typeof m.data === "string") {
+              logGuestInput(peerId, m.data);
+
+              if (m.data === "\r") {
+                if (isDangerousCommand(guestLineBuffer)) {
+                  isFrozen = true;
+                  pendingGuardrail = { peerId, cmd: guestLineBuffer };
+                  process.stdout.write(
+                    `\n\n⚠️  [myna] GUARDRAIL: Guest ${peerId.slice(0, 4)} is attempting to run:\n` +
+                    `   > ${guestLineBuffer}\n` +
+                    `   Press [Ctrl+A then Y] to Allow | [Ctrl+A then N] to Block: `
+                  );
+                  guestLineBuffer = "";
+                  return;
+                }
+                guestLineBuffer = "";
+              } else if (m.data === "\x7f" || m.data === "\b") {
+                guestLineBuffer = guestLineBuffer.slice(0, -1);
+              } else {
+                guestLineBuffer += m.data;
+              }
+
               return session.write(m.data);
             }
           } catch { }
