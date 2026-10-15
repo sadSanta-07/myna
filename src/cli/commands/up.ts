@@ -5,6 +5,8 @@ import { Session } from "../../core/types.js";
 import { getSignalUrl, getShareDomain } from "../../core/config.js";
 import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
+import * as path from "path";
+import * as fs from "fs";
 
 interface GuardrailRequest { cmd: string; res: http.ServerResponse; }
 let pendingGuardrail: GuardrailRequest | null = null;
@@ -56,6 +58,15 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     }
   });
   gateServer.listen(41234, "127.0.0.1");
+
+  if (process.platform === "win32") {
+    const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
+    if (fs.existsSync(hookPath)) {
+      setTimeout(() => {
+        session.write(`. "${hookPath}"\r`);
+      }, 300);
+    }
+  }
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
