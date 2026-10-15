@@ -3,7 +3,7 @@ const setupEl = document.getElementById('setup');
 const terminalWrapEl = document.getElementById('terminal-wrap');
 const terminalEl = document.getElementById('terminal');
 
-const SIGNAL_URL = "wss://myna-cloudflare-signal.iffcogc34.workers.dev";
+const SIGNAL_URL = "wss://myna-cloudflare-signal.iffcogc34.workers.dev".replace(/\/+$/, "");
 
 let ws, pc, dc, term, fitAddon;
 
@@ -45,7 +45,7 @@ async function joinRoom() {
 
     log("Connecting to signaling server...");
 
-    ws = new WebSocket(SIGNAL_URL);
+    ws = new WebSocket(`${SIGNAL_URL}/room/${roomCode}`);
 
     ws.onopen = () => {
         log("Requesting to join room...");
@@ -105,10 +105,22 @@ async function joinRoom() {
                 };
 
                 pc.ondatachannel = (e) => {
-                    dc = e.channel;
-                    dc.onopen = () => {
-                        setupTerminal();
-                    };
+                    if (e.channel.label === "terminal") {
+                        dc = e.channel;
+                        dc.onopen = () => {
+                            setupTerminal();
+                        };
+                    } else if (e.channel.label === "control") {
+                        const controlDc = e.channel;
+                        controlDc.onmessage = (msgEvent) => {
+                            try {
+                                const m = JSON.parse(msgEvent.data);
+                                if (m.type === "resize" && term) {
+                                    term.resize(m.cols, m.rows);
+                                }
+                            } catch (err) { }
+                        };
+                    }
                 };
             }
 
@@ -142,6 +154,12 @@ function setupTerminal() {
 
     term = new Terminal({
         cursorBlink: true,
+        allowProposedApi: true,
+        windowOptions: { setWinLines: false, setWinCols: false },
+        ignoreBracketedPasteMode: false,
+        allowTransparency: false,
+        disableStdin: false,
+        allowWindowOptions: false,
         fontFamily: '"DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: 13,
         lineHeight: 1.45,

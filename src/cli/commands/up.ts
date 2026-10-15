@@ -1,13 +1,16 @@
 import WebSocket from "ws";
+import * as http from "http";
 import { createPeerConnection } from "../../core/peer.js";
 import { Session } from "../../core/types.js";
 import { getSignalUrl, getShareDomain } from "../../core/config.js";
 import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
+import * as path from "path";
+import * as fs from "fs";
 
-let guestLineBuffer = "";
-interface GuardrailRequest { peerId: string; cmd: string; }
+interface GuardrailRequest { cmd: string; res: http.ServerResponse; }
 let pendingGuardrail: GuardrailRequest | null = null;
+let isFrozen = false;
 
 export async function runUp(session: Session, options: { noReplay?: boolean } = {}) {
   const signalWsUrl = getSignalUrl();
@@ -24,7 +27,51 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     console.error("Please check your internet connection or try again later.\n");
     process.exit(1);
   }
+
   const ws = new WebSocket(`${signalWsUrl}/room/${roomCode}`);
+
+  const gateServer = http.createServer((req, res) => {
+    if (req.method === "POST" && req.url === "/check") {
+      let body = "";
+      req.on("data", chunk => body += chunk.toString());
+      req.on("end", () => {
+        try {
+          const { cmd } = JSON.parse(body);
+          if (isDangerousCommand(cmd)) {
+            isFrozen = true;
+            pendingGuardrail = { cmd, res };
+            process.stdout.write(
+              `\r\n\n⚠️  [myna] GUARDRAIL: Guest is attempting to run:\r\n` +
+              `   > ${cmd}\r\n` +
+              `   Press [Ctrl+A then Y] to Allow | [Ctrl+A then N] to Block: `
+            );
+          } else {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ allowed: true }));
+          }
+        } catch {
+          res.writeHead(400).end();
+        }
+      });
+    } else {
+      res.writeHead(404).end();
+    }
+  });
+  gateServer.listen(41234, "127.0.0.1");
+
+  setTimeout(() => {
+    if (process.platform === "win32") {
+      const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
+      if (fs.existsSync(hookPath)) {
+        session.write(`. "${hookPath}"\r`);
+      }
+    } else {
+      const hookPath = path.resolve(process.cwd(), "myna-hook.sh");
+      if (fs.existsSync(hookPath)) {
+        session.write(`source "${hookPath}"\n`);
+      }
+    }
+  }, 300);
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
@@ -33,11 +80,8 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         process.stdin.pause();
       } catch { }
     }
-
-    try {
-      session.kill();
-    } catch { }
-
+    try { gateServer.close(); } catch { }
+    try { session.kill(); } catch { }
     process.exit(code);
   }
 
@@ -71,7 +115,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   const activePeers = new Map<string, PeerSession>();
   let outputHistory = "";
   const MAX_HISTORY = 100000;
-  let isFrozen = false;
 
   interface JoinRequest { peerId: string; requestedRole: string; }
   const joinQueue: JoinRequest[] = [];
@@ -81,6 +124,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     const peer = activePeers.get(peerId);
     if (!peer) return;
     try { peer.dc.close(); } catch { }
+    if (peer.controlDc) try { peer.controlDc.close(); } catch { }
     try { peer.pc.close(); } catch { }
     activePeers.delete(peerId);
   }
@@ -113,13 +157,15 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
         if (pendingGuardrail) {
           if (cmd === "y") {
-            console.log(`\n[myna] Allowed: ${pendingGuardrail.cmd}`);
-            session.write("\r");
+            console.log(`\r\n[myna] Allowed: ${pendingGuardrail.cmd}`);
+            pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" });
+            pendingGuardrail.res.end(JSON.stringify({ allowed: true }));
             isFrozen = false;
             pendingGuardrail = null;
           } else if (cmd === "n") {
-            console.log(`\n[myna] Blocked: ${pendingGuardrail.cmd}`);
-            session.write("\x03");
+            console.log(`\r\n[myna] Blocked: ${pendingGuardrail.cmd}`);
+            pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" });
+            pendingGuardrail.res.end(JSON.stringify({ allowed: false }));
             isFrozen = false;
             pendingGuardrail = null;
           }
@@ -278,26 +324,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
             }
             if (m.type === "input" && typeof m.data === "string") {
               logGuestInput(peerId, m.data);
-
-              if (m.data === "\r") {
-                if (isDangerousCommand(guestLineBuffer)) {
-                  isFrozen = true;
-                  pendingGuardrail = { peerId, cmd: guestLineBuffer };
-                  process.stdout.write(
-                    `\n\n⚠️  [myna] GUARDRAIL: Guest ${peerId.slice(0, 4)} is attempting to run:\n` +
-                    `   > ${guestLineBuffer}\n` +
-                    `   Press [Ctrl+A then Y] to Allow | [Ctrl+A then N] to Block: `
-                  );
-                  guestLineBuffer = "";
-                  return;
-                }
-                guestLineBuffer = "";
-              } else if (m.data === "\x7f" || m.data === "\b") {
-                guestLineBuffer = guestLineBuffer.slice(0, -1);
-              } else {
-                guestLineBuffer += m.data;
-              }
-
               return session.write(m.data);
             }
           } catch { }
