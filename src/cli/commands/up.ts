@@ -20,6 +20,11 @@ export async function runUp(session: Session) {
         process.stdin.pause();
       } catch { }
     }
+    
+    try {
+      session.kill();
+    } catch { }
+
     process.exit(code);
   }
 
