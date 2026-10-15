@@ -3,8 +3,14 @@ name: Reproducibility Check
 on:
   push:
     branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'myna.lock'
   pull_request:
     branches: [main]
+    paths:
+      - 'Dockerfile'
+      - 'myna.lock'
 
 jobs:
   verify-build:
