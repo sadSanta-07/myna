@@ -1,6 +1,9 @@
+/// <reference types="@cloudflare/workers-types" />
 export interface Env {
   MYNA_ROOMS: DurableObjectNamespace;
   ASSETS: Fetcher;
+  METERED_DOMAIN?: string;
+  METERED_API_KEY?: string;
   TURN_USERNAME?: string;
   TURN_CREDENTIAL?: string;
 }
@@ -59,11 +62,12 @@ export class MynaRooms {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): void {
+  async webSocketMessage(socket: WebSocket, raw: string | ArrayBuffer): Promise<void> {
     let msg: SignalMessage;
     try {
       const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
       msg = JSON.parse(text) as SignalMessage;
+      if (!msg || typeof msg !== "object") return;
     } catch {
       return;
     }
@@ -72,6 +76,17 @@ export class MynaRooms {
     if (!own || own.role === "closed") return;
 
     if (msg.type === "create-room") {
+      if (own.code) return;
+
+      let hostCount = 0;
+      for (const s of this.ctx.getWebSockets()) {
+        if (this.data(s)?.role === "host") hostCount++;
+      }
+      if (hostCount > 50) {
+        socket.send(JSON.stringify({ type: "error", message: "Server is at maximum capacity." }));
+        return;
+      }
+
       let code = "";
       do {
         code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
@@ -85,10 +100,18 @@ export class MynaRooms {
     }
 
     if (msg.type === "join-room") {
+      if (own.code) return;
       const code = typeof msg.code === "string" ? msg.code : "";
-      const host = this.roomSockets(code).find((candidate) => this.data(candidate)?.role === "host");
+      const room = this.roomSockets(code);
+      const host = room.find((candidate) => this.data(candidate)?.role === "host");
+
       if (!host) {
-        socket.send(JSON.stringify({ type: "error", message: "room not found" }));
+        socket.send(JSON.stringify({ type: "error", message: "Room not found or expired." }));
+        return;
+      }
+
+      if (room.length >= 6) {
+        socket.send(JSON.stringify({ type: "error", message: "Room is full." }));
         return;
       }
 
@@ -111,6 +134,7 @@ export class MynaRooms {
     const isHost = own.role === "host";
     const room = this.roomSockets(code);
 
+    // --- HOST APPROVALS ---
     if (["approve-peer", "deny-peer", "revoke-peer"].includes(String(msg.type))) {
       if (!isHost) return;
 
@@ -122,7 +146,9 @@ export class MynaRooms {
       if (msg.type === "approve-peer" && targetData.status === "pending") {
         const role = msg.role === "control" ? "control" : "view";
         target.serializeAttachment({ ...targetData, status: "approved" } satisfies SocketData);
-        const iceServers = this.getIceServers();
+        
+        const iceServers = await this.getIceServers();
+        
         target.send(JSON.stringify({ type: "joined", code, role, iceServers }));
         socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers }));
       } else if (msg.type === "deny-peer" && targetData.status === "pending") {
@@ -135,6 +161,7 @@ export class MynaRooms {
       return;
     }
 
+    // --- WebRTC SDP/ICE SIGNALING ---
     if (["sdp-offer", "sdp-answer", "ice-candidate"].includes(String(msg.type))) {
       if (isHost) {
         const targetId = typeof msg.peerId === "string" ? msg.peerId : "";
@@ -188,10 +215,23 @@ export class MynaRooms {
     return this.ctx.getWebSockets().filter((socket) => this.data(socket)?.code === code);
   }
 
-  private getIceServers(): RTCIceServer[] {
-    const servers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  private async getIceServers(): Promise<RTCIceServer[]> {
+    const defaultServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+
+    if (this.env.METERED_DOMAIN && this.env.METERED_API_KEY) {
+      try {
+        const res = await fetch(`https://${this.env.METERED_DOMAIN}.metered.live/api/v1/turn/credentials?apiKey=${this.env.METERED_API_KEY}`);
+        if (res.ok) {
+          const data = await res.json() as RTCIceServer[];
+          return data;
+        }
+      } catch (err) {
+        console.error("Dynamic TURN fetch failed, falling back to STUN/Static.", err);
+      }
+    }
+
     if (this.env.TURN_USERNAME && this.env.TURN_CREDENTIAL) {
-      servers.push({
+      defaultServers.push({
         urls: [
           "turn:global.relay.metered.ca:80",
           "turn:global.relay.metered.ca:443",
@@ -201,6 +241,7 @@ export class MynaRooms {
         credential: this.env.TURN_CREDENTIAL,
       });
     }
-    return servers;
+
+    return defaultServers;
   }
 }
