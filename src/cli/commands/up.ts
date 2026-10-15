@@ -61,6 +61,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   interface PeerSession {
     pc: RTCPeerConnection;
     dc: RTCDataChannel;
+    controlDc?: RTCDataChannel;
     role: "view" | "control";
     channelOpen: boolean;
     remoteDescSet: boolean;
@@ -187,6 +188,12 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     const rows = process.stdout.rows;
     if (cols && rows) {
       try { session.resize(cols, rows); } catch { }
+
+      for (const peer of activePeers.values()) {
+        if (peer.controlDc && peer.controlDc.readyState === "open") {
+          try { peer.controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
+        }
+      }
     }
   });
 
@@ -224,16 +231,26 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         const peerId = msg.peerId;
         const pc = createPeerConnection("host", msg.iceServers);
         const dc = pc.createDataChannel("terminal");
+        const controlDc = pc.createDataChannel("control");
 
         const peerSession: PeerSession = {
           pc,
           dc,
+          controlDc,
           role: msg.role,
           channelOpen: false,
           remoteDescSet: false,
           pendingCandidates: [],
         };
         activePeers.set(peerId, peerSession);
+
+        controlDc.onopen = () => {
+          const cols = process.stdout.columns;
+          const rows = process.stdout.rows;
+          if (cols && rows) {
+            try { controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
+          }
+        };
 
         dc.onopen = () => {
           console.log(`\n[myna] data channel open for ${peerId.slice(0, 4)}`);

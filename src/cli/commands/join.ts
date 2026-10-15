@@ -82,35 +82,44 @@ export async function runJoin(code: string, requestedRole: string) {
         };
 
         pc.ondatachannel = (event) => {
-          dc = event.channel;
-          dc.onopen = () => {
-            console.log(chalk.greenBright("[myna] Terminal stream connected! (Ctrl+] to detach)\n"));
-            if (process.stdin.isTTY) {
-              process.stdin.setRawMode(true);
-              process.stdin.resume();
-              process.stdin.setEncoding("utf8");
-            }
-          };
+          if (event.channel.label === "terminal") {
+            dc = event.channel;
+            dc.onopen = () => {
+              console.log(chalk.greenBright("[myna] Terminal stream connected! (Ctrl+] to detach)\n"));
+              if (process.stdin.isTTY) {
+                process.stdin.setRawMode(true);
+                process.stdin.resume();
+                process.stdin.setEncoding("utf8");
+              }
+            };
 
-          dc.onmessage = (e) => process.stdout.write(e.data);
+            dc.onmessage = (e) => process.stdout.write(e.data);
 
-          process.stdin.on("data", (data: string) => {
-            if (data.includes("\x1d")) { // Ctrl+]
-              console.log(chalk.yellow("\n[myna] Detached."));
-              restoreTerminalAndExit(0);
-            }
-            if (dc && dc.readyState === "open") {
-              dc.send(JSON.stringify({ type: "input", data }));
-            }
-          });
-
-          process.stdout.on("resize", () => {
-            const cols = process.stdout.columns;
-            const rows = process.stdout.rows;
-            if (cols && rows && dc && dc.readyState === "open") {
-              dc.send(JSON.stringify({ type: "resize", cols, rows }));
-            }
-          });
+            process.stdin.on("data", (data: string) => {
+              if (data.includes("\x1d")) { // Ctrl+]
+                console.log(chalk.yellow("\n[myna] Detached."));
+                restoreTerminalAndExit(0);
+              }
+              if (dc && dc.readyState === "open") {
+                dc.send(JSON.stringify({ type: "input", data }));
+              }
+            });
+          } 
+          else if (event.channel.label === "control") {
+            const controlDc = event.channel;
+            controlDc.onmessage = (e) => {
+              try {
+                const m = JSON.parse(e.data);
+                if (m.type === "resize") {
+                  const myCols = process.stdout.columns;
+                  const myRows = process.stdout.rows;
+                  if (myCols && myRows && (myCols < m.cols || myRows < m.rows)) {
+                    process.stdout.write(`\x1b[33m\r\n[myna] Host resized to ${m.cols}x${m.rows} (Larger than your window!)\x1b[0m\r\n`);
+                  }
+                }
+              } catch {}
+            };
+          }
         };
       }
 
