@@ -5,7 +5,7 @@ import chalk from "chalk";
 
 export async function runJoin(code: string, requestedRole: string) {
   const signalUrl = getSignalUrl();
-  const ws = new WebSocket(signalUrl);
+  const ws = new WebSocket(`${signalUrl}/room/${code}`);
 
   function restoreTerminalAndExit(exitCode = 0) {
     if (process.stdin.isTTY) {

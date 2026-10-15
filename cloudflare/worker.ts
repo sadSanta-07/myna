@@ -16,8 +16,22 @@ export default {
       return new Response("OK", { headers: { "content-type": "text/plain; charset=utf-8" } });
     }
 
-    if (request.headers.get("Upgrade")?.toLowerCase() === "websocket") {
-      const id = env.MYNA_ROOMS.idFromName("myna-global-signaling");
+    if (url.pathname === "/new" && request.method === "POST") {
+      const code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+      return new Response(JSON.stringify({ code }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+
+    const roomMatch = url.pathname.match(/^\/room\/([a-f0-9]{8})$/);
+    if (roomMatch && request.headers.get("Upgrade")?.toLowerCase() === "websocket") {
+      const code = roomMatch[1];
+      const id = env.MYNA_ROOMS.idFromName(code);
       return env.MYNA_ROOMS.get(id).fetch(request);
     }
 
@@ -52,12 +66,15 @@ export class MynaRooms {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
 
+    const url = new URL(request.url);
+    const roomCode = url.pathname.split("/").pop();
+
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
     this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ role: "guest" } satisfies SocketData);
+    server.serializeAttachment({ role: "guest", code: roomCode } satisfies SocketData);
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -73,44 +90,27 @@ export class MynaRooms {
     }
 
     const own = this.data(socket);
-    if (!own || own.role === "closed") return;
+    if (!own || own.role === "closed" || !own.code) return;
+
+    const code = own.code;
+    const roomSockets = this.ctx.getWebSockets();
+    const host = roomSockets.find((candidate) => this.data(candidate)?.role === "host");
 
     if (msg.type === "create-room") {
-      if (own.code) return;
-
-      let hostCount = 0;
-      for (const s of this.ctx.getWebSockets()) {
-        if (this.data(s)?.role === "host") hostCount++;
-      }
-      if (hostCount > 50) {
-        socket.send(JSON.stringify({ type: "error", message: "Server is at maximum capacity." }));
-        return;
-      }
-
-      let code = "";
-      do {
-        code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
-          .map((byte) => byte.toString(16).padStart(2, "0"))
-          .join("");
-      } while (this.roomSockets(code).some((candidate) => this.data(candidate)?.role === "host"));
-
+      if (host) return;
       socket.serializeAttachment({ role: "host", code } satisfies SocketData);
       socket.send(JSON.stringify({ type: "room-created", code }));
       return;
     }
 
     if (msg.type === "join-room") {
-      if (own.code) return;
-      const code = typeof msg.code === "string" ? msg.code : "";
-      const room = this.roomSockets(code);
-      const host = room.find((candidate) => this.data(candidate)?.role === "host");
-
+      if (own.role === "host") return;
       if (!host) {
         socket.send(JSON.stringify({ type: "error", message: "Room not found or expired." }));
         return;
       }
 
-      if (room.length >= 6) {
+      if (roomSockets.length >= 6) {
         socket.send(JSON.stringify({ type: "error", message: "Room is full." }));
         return;
       }
@@ -129,17 +129,14 @@ export class MynaRooms {
       return;
     }
 
-    const code = own.code;
-    if (!code) return;
     const isHost = own.role === "host";
-    const room = this.roomSockets(code);
 
     // --- HOST APPROVALS ---
     if (["approve-peer", "deny-peer", "revoke-peer"].includes(String(msg.type))) {
       if (!isHost) return;
 
       const targetId = typeof msg.peerId === "string" ? msg.peerId : "";
-      const target = room.find((candidate) => this.data(candidate)?.peerId === targetId);
+      const target = roomSockets.find((candidate) => this.data(candidate)?.peerId === targetId);
       const targetData = target ? this.data(target) : undefined;
       if (!target || !targetData) return;
 
@@ -148,7 +145,6 @@ export class MynaRooms {
         target.serializeAttachment({ ...targetData, status: "approved" } satisfies SocketData);
         
         const iceServers = await this.getIceServers();
-        
         target.send(JSON.stringify({ type: "joined", code, role, iceServers }));
         socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers }));
       } else if (msg.type === "deny-peer" && targetData.status === "pending") {
@@ -161,17 +157,15 @@ export class MynaRooms {
       return;
     }
 
-    // --- WebRTC SDP/ICE SIGNALING ---
     if (["sdp-offer", "sdp-answer", "ice-candidate"].includes(String(msg.type))) {
       if (isHost) {
         const targetId = typeof msg.peerId === "string" ? msg.peerId : "";
-        const target = room.find((candidate) => {
+        const target = roomSockets.find((candidate) => {
           const data = this.data(candidate);
           return data?.peerId === targetId && data.status === "approved";
         });
         if (target) target.send(JSON.stringify(msg));
       } else if (own.peerId && own.status === "approved") {
-        const host = room.find((candidate) => this.data(candidate)?.role === "host");
         if (host) host.send(JSON.stringify({ ...msg, peerId: own.peerId }));
       }
     }
@@ -181,9 +175,9 @@ export class MynaRooms {
     const own = this.data(socket);
     if (!own?.code) return;
 
-    const room = this.roomSockets(own.code);
+    const roomSockets = this.ctx.getWebSockets();
     if (own.role === "host") {
-      for (const peer of room) {
+      for (const peer of roomSockets) {
         if (peer === socket) continue;
         try { peer.send(JSON.stringify({ type: "host-left", code: own.code })); } catch {}
         peer.serializeAttachment({ role: "closed" } satisfies SocketData);
@@ -192,7 +186,7 @@ export class MynaRooms {
     }
 
     if (own.peerId) {
-      const host = room.find((candidate) => this.data(candidate)?.role === "host");
+      const host = roomSockets.find((candidate) => this.data(candidate)?.role === "host");
       if (host) {
         host.send(JSON.stringify({
           type: own.status === "approved" ? "peer-left" : "join-request-cancelled",
@@ -209,10 +203,6 @@ export class MynaRooms {
 
   private data(socket: WebSocket): SocketData | undefined {
     try { return socket.deserializeAttachment() as SocketData | undefined; } catch { return undefined; }
-  }
-
-  private roomSockets(code: string): WebSocket[] {
-    return this.ctx.getWebSockets().filter((socket) => this.data(socket)?.code === code);
   }
 
   private async getIceServers(): Promise<RTCIceServer[]> {
