@@ -1,6 +1,4 @@
 import wrtc from "@roamhq/wrtc";
-import dotenv from "dotenv";
-dotenv.config();
 
 const { RTCPeerConnection } = wrtc;
 
