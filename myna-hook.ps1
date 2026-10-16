@@ -1,12 +1,15 @@
 # myna-hook.ps1
 Import-Module PSReadLine
 
-Set-PSReadLineKeyHandler -Chord 'Enter' -ScriptBlock {
+# Bind to BOTH the physical Enter key and the network Carriage Return (Ctrl+m)
+Set-PSReadLineKeyHandler -Chord 'Enter', 'Ctrl+m' -ScriptBlock {
     $line = $null
     $cursor = $null
     
     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
     $cmd = $line.Trim()
+
+    Write-Host "`n[debug] Hook intercepted: '$cmd'" -ForegroundColor DarkGray
 
     if ([string]::IsNullOrWhiteSpace($cmd)) {
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
@@ -17,7 +20,6 @@ Set-PSReadLineKeyHandler -Chord 'Enter' -ScriptBlock {
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         return
     }
-
     try {
         $pipeName = $env:MYNA_GATE_PIPE.Replace("\\.\pipe\", "")
         $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $pipeName, [System.IO.Pipes.PipeDirection]::InOut)

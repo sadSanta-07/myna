@@ -9,6 +9,8 @@ export interface Env {
   TURN_CREDENTIAL?: string;
 }
 
+const ipRateLimit = new Map<string, { hits: number; expire: number }>();
+
 async function signCode(code: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
@@ -27,6 +29,16 @@ async function signCode(code: string, secret: string): Promise<string> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const ip = request.headers.get("cf-connecting-ip") || "unknown-ip";
+    const now = Date.now();
+    let rl = ipRateLimit.get(ip);
+    if (!rl || now > rl.expire) rl = { hits: 0, expire: now + 60000 };
+    rl.hits++;
+    ipRateLimit.set(ip, rl);
+
+    if (rl.hits > 30) {
+      return new Response("Too many requests", { status: 429 });
+    }
     const url = new URL(request.url);
     const secret = env.ROOM_SECRET || "myna-dev-fallback-secret-2026";
 
@@ -127,14 +139,14 @@ export class MynaRooms {
     const host = roomSockets.find((candidate) => this.data(candidate)?.role === "host");
 
     if (msg.type === "create-room") {
-      if (host) return;
+      if (host || own.role === "host") return;
       socket.serializeAttachment({ role: "host", code } satisfies SocketData);
       socket.send(JSON.stringify({ type: "room-created", code }));
       return;
     }
 
     if (msg.type === "join-room") {
-      if (own.role === "host") return;
+      if (own.role === "host" || own.peerId) return;
       if (!host) {
         socket.send(JSON.stringify({ type: "error", message: "Room not found or expired." }));
         return;
@@ -179,9 +191,11 @@ export class MynaRooms {
       } else if (msg.type === "deny-peer" && targetData.status === "pending") {
         target.send(JSON.stringify({ type: "join-denied", code }));
         target.serializeAttachment({ role: "closed" } satisfies SocketData);
+        target.close(4000, "Denied");
       } else if (msg.type === "revoke-peer" && targetData.status === "approved") {
         target.send(JSON.stringify({ type: "revoked" }));
         target.serializeAttachment({ role: "closed" } satisfies SocketData);
+        target.close(4000, "Revoked");
       }
       return;
     }
