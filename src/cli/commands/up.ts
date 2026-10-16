@@ -7,9 +7,17 @@ import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
 import * as path from "path";
 import * as fs from "fs";
+import * as net from "net";
+import * as os from "os";
 import { printSessionPanel } from "../ui/panel.js";
 
-interface GuardrailRequest { cmd: string; res: http.ServerResponse; }
+interface GuardrailRequest {
+  cmd: string;
+  res: {
+    writeHead: (statusCode: number, headers?: any) => void;
+    end: (data: string) => void;
+  };
+}
 let pendingGuardrail: GuardrailRequest | null = null;
 let isFrozen = false;
 
@@ -31,31 +39,51 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
   const ws = new WebSocket(`${signalWsUrl}/room/${roomCode}`);
 
-  const gateServer = http.createServer((req, res) => {
-    if (req.method === "POST" && req.url === "/check") {
-      let body = "";
-      req.on("data", chunk => body += chunk.toString());
-      req.on("end", () => {
-        try {
-          const { cmd } = JSON.parse(body);
-          if (isDangerousCommand(cmd)) {
-            isFrozen = true;
-            pendingGuardrail = { cmd, res };
-            process.stdout.write(
-              `\r\n\n⚠️  [myna] GUARDRAIL: Guest is attempting to run:\r\n` +
-              `   > ${cmd}\r\n` +
-              `   Press [Ctrl+A then Y] to Allow | [Ctrl+A then N] to Block: `
-            );
-          } else {
-            res.writeHead(200, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ allowed: true }));
-          }
-        } catch {
-          res.writeHead(400).end();
+  const sessionId = Math.random().toString(36).substring(2, 10);
+  const pipePath = process.platform === "win32"
+    ? `\\\\.\\pipe\\myna-gate-${sessionId}`
+    : path.join(os.tmpdir(), `myna-gate-${sessionId}.sock`);
+
+  if (process.platform !== "win32" && fs.existsSync(pipePath)) {
+    try { fs.unlinkSync(pipePath); } catch { }
+  }
+
+  process.env.MYNA_GATE_PIPE = pipePath;
+
+  const gateServer = net.createServer((socket) => {
+    socket.on("data", (data) => {
+      try {
+        const { cmd } = JSON.parse(data.toString());
+        if (isDangerousCommand(cmd)) {
+          isFrozen = true;
+          pendingGuardrail = {
+            cmd,
+            res: {
+              writeHead: () => { },
+              end: (responseStr: string) => {
+                socket.write(responseStr);
+                socket.end();
+              }
+            }
+          };
+          process.stdout.write(
+            `\r\n\n⚠️  [myna] GUARDRAIL: Guest is attempting to run:\r\n` +
+            `   > ${cmd}\r\n` +
+            `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
+          );
+        } else {
+          socket.write(JSON.stringify({ allowed: true }));
+          socket.end();
         }
-      });
-    } else {
-      res.writeHead(404).end();
+      } catch {
+        socket.end();
+      }
+    });
+  });
+
+  gateServer.listen(pipePath, () => {
+    if (process.platform !== "win32") {
+      try { fs.chmodSync(pipePath, 0o600); } catch { }
     }
   });
   gateServer.listen(41234, "127.0.0.1");
@@ -146,8 +174,8 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     process.stdin.setEncoding("utf8");
 
     process.stdin.on("data", (key: string) => {
-      // Leader Key Trigger
-      if (key === "\x01") {
+      // Leader Key Trigger changed to Ctrl+] (\x1d)
+      if (key === "\x1d") {
         leaderActive = true;
         return;
       }
@@ -179,7 +207,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
             const role = cmd === "c" ? "control" : "view";
             ws.send(JSON.stringify({ type: "approve-peer", peerId, role }));
             console.log(`\n[myna] Approved ${peerId.slice(0, 4)} as ${role}`);
-          } else if (cmd === "n") {
+          } else if (cmd === "d") { // Changed from 'n' to 'd' (deny)
             ws.send(JSON.stringify({ type: "deny-peer", peerId }));
             console.log(`\n[myna] Denied ${peerId.slice(0, 4)}`);
           }
@@ -191,7 +219,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         // Freeze Toggle
         if (cmd === "f") {
           isFrozen = !isFrozen;
-          console.log(`\n[myna] Session ${isFrozen ? "FROZEN (guest input paused)" : "UNFROZEN (guest input active)"}`);
+          console.log(`\n[myna] Session ${isFrozen ? "FROZEN" : "UNFROZEN"}`);
           return;
         }
 

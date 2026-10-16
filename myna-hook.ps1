@@ -13,11 +13,30 @@ Set-PSReadLineKeyHandler -Chord 'Enter' -ScriptBlock {
         return
     }
 
+    if (-not $env:MYNA_GATE_PIPE) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        return
+    }
+
     try {
-        $body = @{ cmd = $cmd } | ConvertTo-Json -Compress
-        $response = Invoke-RestMethod -Uri "http://127.0.0.1:41234/check" -Method Post -Body $body -ContentType "application/json" -TimeoutSec 15
+        $pipeName = $env:MYNA_GATE_PIPE.Replace("\\.\pipe\", "")
+        $pipeClient = New-Object System.IO.Pipes.NamedPipeClientStream(".", $pipeName, [System.IO.Pipes.PipeDirection]::InOut)
         
-        if ($response.allowed -eq $true) {
+        $pipeClient.Connect(2000)
+
+        $writer = New-Object System.IO.StreamWriter($pipeClient)
+        $reader = New-Object System.IO.StreamReader($pipeClient)
+        
+        $escapedCmd = $cmd.Replace("\", "\\").Replace('"', '\"')
+        $body = '{"cmd":"' + $escapedCmd + '"}'
+        
+        $writer.Write($body)
+        $writer.Flush()
+
+        $response = $reader.ReadToEnd()
+        $pipeClient.Dispose()
+        
+        if ($response -match '"allowed":true') {
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         } else {
             [Console]::WriteLine()
@@ -29,4 +48,4 @@ Set-PSReadLineKeyHandler -Chord 'Enter' -ScriptBlock {
     }
 }
 
-Write-Host "[myna] Guardrail hook connected to Local Input Gate." -ForegroundColor Cyan
+Write-Host "[myna] Guardrail hook connected to Secure IPC Socket." -ForegroundColor Cyan

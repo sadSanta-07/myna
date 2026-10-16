@@ -2,25 +2,46 @@
 export interface Env {
   MYNA_ROOMS: DurableObjectNamespace;
   ASSETS: Fetcher;
+  ROOM_SECRET?: string;
   METERED_DOMAIN?: string;
   METERED_API_KEY?: string;
   TURN_USERNAME?: string;
   TURN_CREDENTIAL?: string;
 }
 
+async function signCode(code: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(code));
+  const hashHex = Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `${code}.${hashHex.substring(0, 16)}`;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const secret = env.ROOM_SECRET || "myna-dev-fallback-secret-2026";
 
     if (url.pathname === "/health") {
       return new Response("OK", { headers: { "content-type": "text/plain; charset=utf-8" } });
     }
 
     if (url.pathname === "/new" && request.method === "POST") {
-      const code = Array.from(crypto.getRandomValues(new Uint8Array(4)))
+      const rawCode = Array.from(crypto.getRandomValues(new Uint8Array(4)))
         .map((byte) => byte.toString(16).padStart(2, "0"))
         .join("");
-      return new Response(JSON.stringify({ code }), {
+
+      const signedCode = await signCode(rawCode, secret);
+
+      return new Response(JSON.stringify({ code: signedCode }), {
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
@@ -28,10 +49,19 @@ export default {
       });
     }
 
-    const roomMatch = url.pathname.match(/^\/room\/([a-f0-9]{8})$/);
+    const roomMatch = url.pathname.match(/^\/room\/([a-f0-9]{8})\.([a-f0-9]{16})$/);
     if (roomMatch && request.headers.get("Upgrade")?.toLowerCase() === "websocket") {
-      const code = roomMatch[1];
-      const id = env.MYNA_ROOMS.idFromName(code);
+      const rawCode = roomMatch[1];
+      const providedSig = roomMatch[2];
+
+      const expectedSignedCode = await signCode(rawCode, secret);
+      const expectedSig = expectedSignedCode.split(".")[1];
+
+      if (providedSig !== expectedSig) {
+        return new Response("Forbidden: Invalid or forged room code", { status: 403 });
+      }
+
+      const id = env.MYNA_ROOMS.idFromName(rawCode);
       return env.MYNA_ROOMS.get(id).fetch(request);
     }
 
@@ -59,7 +89,7 @@ export class MynaRooms {
   constructor(
     private readonly ctx: DurableObjectState,
     private readonly env: Env,
-  ) {}
+  ) { }
 
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
@@ -131,7 +161,6 @@ export class MynaRooms {
 
     const isHost = own.role === "host";
 
-    // --- HOST APPROVALS ---
     if (["approve-peer", "deny-peer", "revoke-peer"].includes(String(msg.type))) {
       if (!isHost) return;
 
@@ -143,7 +172,7 @@ export class MynaRooms {
       if (msg.type === "approve-peer" && targetData.status === "pending") {
         const role = msg.role === "control" ? "control" : "view";
         target.serializeAttachment({ ...targetData, status: "approved" } satisfies SocketData);
-        
+
         const iceServers = await this.getIceServers();
         target.send(JSON.stringify({ type: "joined", code, role, iceServers }));
         socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers }));
@@ -176,17 +205,18 @@ export class MynaRooms {
     if (!own?.code) return;
 
     const roomSockets = this.ctx.getWebSockets();
+
     if (own.role === "host") {
       for (const peer of roomSockets) {
         if (peer === socket) continue;
-        try { peer.send(JSON.stringify({ type: "host-left", code: own.code })); } catch {}
+        try { peer.send(JSON.stringify({ type: "host-left", code: own.code })); } catch { }
         peer.serializeAttachment({ role: "closed" } satisfies SocketData);
       }
       return;
     }
 
     if (own.peerId) {
-      const host = roomSockets.find((candidate) => this.data(candidate)?.role === "host");
+      const host = roomSockets.find((candidate: WebSocket) => this.data(candidate)?.role === "host");
       if (host) {
         host.send(JSON.stringify({
           type: own.status === "approved" ? "peer-left" : "join-request-cancelled",
