@@ -4,31 +4,26 @@
 
 _myna_check_cmd() {
     local cmd="$1"
-
     if [ -z "$cmd" ] || [[ "$cmd" == _myna_* ]] || [[ "$cmd" == *"myna-hook"* ]]; then
         return 0
     fi
 
-    # Escape JSON string cleanly
-    local json_body
-    if command -v python3 >/dev/null 2>&1; then
-        json_body=$(python3 -c "import json, sys; print(json.dumps({'cmd': sys.argv[1]}))" "$cmd")
-    else
-        local escaped_cmd
-        escaped_cmd=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
-        json_body="{\"cmd\":\"$escaped_cmd\"}"
-    fi
+    local escaped_cmd
+    escaped_cmd=$(printf '%s' "$cmd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    local json_body="{\"cmd\":\"$escaped_cmd\"}"
 
     local response
-    response=$(curl -s -m 15 -X POST http://127.0.0.1:41234/check \
-        -H "Content-Type: application/json" \
-        -d "$json_body" 2>/dev/null)
+    if command -v nc >/dev/null 2>&1; then
+        response=$(printf "%s" "$json_body" | nc -U "$MYNA_GATE_PIPE" 2>/dev/null)
+    elif command -v socat >/dev/null 2>&1; then
+        response=$(printf "%s" "$json_body" | socat - UNIX-CONNECT:"$MYNA_GATE_PIPE" 2>/dev/null)
+    else
+        return 0
+    fi
 
-    if [ $? -eq 0 ] && [ -n "$response" ]; then
-        if printf '%s' "$response" | grep -q '"allowed":false'; then
-            printf "\n\033[31m⚠️  [myna] Host blocked this command.\033[0m\n"
-            return 1
-        fi
+    if [ -n "$response" ] && printf '%s' "$response" | grep -q '"allowed":false'; then
+        printf "\n\033[31m⚠️  [myna] Host blocked this command.\033[0m\n"
+        return 1
     fi
     return 0
 }

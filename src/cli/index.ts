@@ -11,8 +11,9 @@ import * as crypto from "crypto";
 import { startServer } from "../core/server.js";
 import { execSync } from "child_process";
 import { createBwrapSession } from "../core/bwrap.js";
+import { printBanner } from "./ui/banner.js";
 
-console.log(chalk.magentaBright(figlet.textSync("MYNA", { font: "chunky" })));
+printBanner();
 
 const program = new Command();
 

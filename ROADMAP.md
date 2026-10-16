@@ -9,10 +9,12 @@ This file separates what is built from what is planned. Phases 1 to 5 are summar
 **Pitch:** private peer-to-peer terminal sharing for teammates you trust. You share the shell you already use, with your own tools, and nothing needs to be set up.
 
 **What is true today:**
+
 - Terminal data is encrypted between the two peers (DTLS), including when it is relayed through a TURN server.
 - No central server relays terminal data in the direct case.
 
 **What not to claim yet:**
+
 - "Completely private." The signaling server sees room codes and the IP addresses inside ICE candidates, and until Phase 10 a compromised signaling server could in principle sit in the middle of the handshake.
 - Specific latency numbers. Latency depends on the network path, and a TURN relay adds a round trip. Measure before quoting anything.
 - That nobody else does peer-to-peer terminal sharing. **termishare** (WebRTC, a prebuilt Go binary, TURN fallback) and **shwim** (end-to-end encrypted through Magic Wormhole's PAKE, with a read-only option) appear to. Read both READMEs and update the comparison before claiming a differentiator.
@@ -56,18 +58,23 @@ These come from problems the native pivot creates. Follow them from the start.
 ## Completed
 
 ### Phase 1: P2P core ✅
+
 PTY streaming over a WebRTC DataChannel. SDP/ICE exchange, bidirectional input, resize sync. Verified across separate networks, including the symmetric-NAT case that needs TURN.
 
 ### Phase 2: Container sandbox ✅
+
 Disposable Docker container behind a shared `Session` interface. Verified isolation (`whoami` returned `root` in the container, host files not visible).
 
 ### Phase 3: Reproducible builds and CI ✅
+
 Digest-pinned base image, layer-content hashing (the top-level image ID changed on every build because of Buildx attestation metadata), `myna.lock`, and GitHub Actions with a deliberately failing run as proof. This matters in sandbox mode only.
 
 ### Phase 4: Multi-peer and permissions ✅
+
 Host approval, `view` and `control` roles enforced on the host, several guests at once, replay for late joiners, JSON framing. The server accepts approvals only from the host and relays handshake messages only for approved peers.
 
 ### Phase 5: Browser client ✅
+
 `xterm.js` guest page with role selection, direct DataChannel to the host, TURN credentials held server-side, and `PROTOCOL.md`.
 
 ### Repo state (`main`, checked 2026-10-14)
@@ -89,11 +96,13 @@ This comes from a file inventory and written description, plus a direct read of 
 ### Code review (read from `worker.ts`, `up.ts`, `peer.ts`, `types.ts`)
 
 **Already right:**
+
 - The trust boundary in the Worker is correct. Only the host socket can approve, deny or revoke. Handshake messages are relayed only for approved peers, and the Worker stamps the sender's `peerId` itself.
 - The host checks a guest's role before parsing any DataChannel message, and an unknown role falls back to `view`.
 - Rooms use the WebSocket Hibernation API, each guest has its own connection, and input uses JSON framing (`type: "input"`).
 
 **Fix before anyone but you uses native mode (P0):**
+
 1. **Typing `c`, `v` or `n` answers the join prompt.** In `up.ts`, while a request is pending, every host keystroke is swallowed and `c` grants control. A host typing `cd` or `cat` when a request arrives grants a stranger control of their real shell by accident, and the rest of what they typed is lost. Approvals must need a deliberate action that ordinary typing can't produce (see 6.4).
 2. **`dotenv` loads the current directory's `.env`.** `peer.ts` calls `dotenv.config()`. Run from a project, `myna up` loads that project's secrets into Myna's environment, and if `session.ts` still passes `process.env` to the shell, into the shell a guest controls. It can also override `TURN_*`.
 3. **Host Ctrl+C kills Myna and never reaches the shell.** In native mode you couldn't interrupt your own running command. Ctrl+X (revoke) also collides with readline. In sandbox mode the same handler never calls `session.kill()`, so the container is left running.
@@ -135,6 +144,7 @@ The answers decide how much of Phases 14 and 12 (the single-binary question) is 
 **Goal:** `myna up` shares your actual shell, and it feels like using your terminal normally. No Docker needed.
 
 ### 6.0 Repo cleanup that unblocks everything (do first)
+
 - **One source of truth for URLs.** Create `src/core/config.ts` with the default signaling URL and a share-link base derived from it, and use it in `up.ts` and `join.ts`. This fixes the Render and Cloudflare mismatch.
 - **Prove the Worker end to end.** Write a scripted test that runs create-room, join, approve, SDP, ICE and a data-channel round trip against `wrangler dev` (and later the deployed Worker), and run it in CI. Until it exists, "works through Cloudflare" is a claim, not a fact.
 - **Two signaling servers.** Make `cloudflare/worker.ts` the canonical one and keep `src/core/server.ts` for local development and self-hosting only if it earns its place. If both stay, write conformance tests from `docs/PROTOCOL.md` and run them against both. Two implementations drift apart quietly.
@@ -147,36 +157,42 @@ The answers decide how much of Phases 14 and 12 (the single-binary question) is 
 - **Review before promoting the repo.** Read `AGENTS.md`, `CLOUDFLARE_DEPLOY.md` and `wrangler.toml` for personal or account details.
 
 ### 6.1 Backend selection
+
 - Today `myna up` defaults to Docker and `--local` selects the shell. Flip this: native by default, `--sandbox` for Docker, and keep `--local` as a hidden alias for one release so existing habits and scripts don't break.
 - `myna up` uses the native backend. `myna up --sandbox` uses Docker (options: `--image`, `--mount ro|rw|none`).
 - Keep origin out of the `Session` interface. Put the Input Gate (7.1) in front of `session.write` and tag input at the gate, since a backend shouldn't know who typed. Do add a `backend: "native" | "docker"` field so the UI can say which guardrails apply, and make `onData` return an unsubscribe function.
 - Keep the `Session` interface as the single seam between transport and backend.
 
 ### 6.2 Host terminal passthrough
+
 - **Quiet by default.** Any write to stdout lands inside the shared shell. Move the `console.log` calls in `peer.ts` and `up.ts` behind `--verbose`, and send them to a log file or one reserved status line.
 - Put the host's terminal in raw mode, forward host keystrokes to the PTY, and mirror PTY output to the host's screen and to every guest.
 - Restore the terminal on every exit path: normal exit, shell exit, Ctrl+C handling, uncaught exceptions and signals. A crash must never leave the host's terminal in raw mode.
 - The shell's exit ends the session, and tells guests why.
 
 ### 6.3 Resize policy
+
 - `up.ts` currently applies a guest's resize message with `session.resize`. Drop that in native mode.
 - PTY size follows the host's terminal. Ignore guest resize messages in native mode. In sandbox mode the existing behavior can stay.
 - Tell guests the host's dimensions so they render correctly (the CLI guest and the browser both need this).
 - Output goes to guests as raw strings while input comes back as JSON, so there is no way to send the host's size, a "frozen" notice or a "session is logged" banner. Add a second DataChannel (`control`) for those messages and leave the terminal channel untouched.
 
 ### 6.4 Leader key and host commands
+
 - **Answer join prompts through the leader.** For example leader then `a` (approve as view), leader then `c` (approve as control), leader then `n` (deny). Ordinary keys never answer a prompt and are never swallowed while one is pending. Cap the pending queue (`joinQueue` in `up.ts` is unbounded).
 - **Ctrl+C goes to the shell in native mode.** Quit Myna with a leader command or by exiting the shell.
 - One configurable leader key, then a letter: freeze or unfreeze, revoke all guests, list guests, help.
 - Choose the default by testing it inside bash, zsh, PowerShell, vim, tmux and less.
 
 ### 6.5 Consent flow
+
 - **Output replay is a privacy decision.** Today every new guest gets up to 100,000 characters of history. In native mode, tell the host before approving, and add `--no-replay`. Consider no replay by default for `control` guests.
 - The approval prompt shows the requested role. The default answer is `view`.
 - Granting `control` on the native backend requires typing a confirmation once per session, with plain text such as: "This person can run anything you can in this shell."
 - Show every guest a banner saying the session is logged (Phase 7.3).
 
 ### 6.6 Join-code security and signaling abuse (required before native mode is used by anyone but you)
+
 - The code is 8 hex characters (32 bits), made in `cloudflare/worker.ts`. There is no rate limit, and every guess that hits a live room puts a prompt on the host's terminal. With a native shell, one mistaken approval is a full compromise.
 - **One Durable Object per room.** The Worker generates the room ID, routes by `idFromName(code)`, and guests connect with the code in the URL. Rooms are isolated by construction, idle rooms disappear, one busy room can't slow the others, and rate limits are per room.
 - Rate-limit join attempts per IP and per room. Cap pending requests (a handful), guests per room, and message size. Give rooms a TTL and a maximum age.
@@ -194,21 +210,25 @@ The answers decide how much of Phases 14 and 12 (the single-binary question) is 
 **Goal:** make accidents unlikely and misuse visible, with almost no interruption for the host.
 
 ### 7.1 The Input Gate
+
 - One module that every guest input chunk passes through: role check, then freeze, then audit, then guardrail.
 - Unit-test it against a fake backend. Rule 4 applies: dropped means discarded.
 
 ### 7.2 Freeze
+
 - Leader key plus `f` toggles freeze. The guest's input is discarded and the connection stays up.
 - Show a status line to the host and a banner to the guest ("input paused by host").
 - Add optional time-limited control that expires on its own.
 
 ### 7.3 Audit log
+
 - Log guest input with timestamps and the guest identifier, plus the reconstructed command line when the guardrail hook provides it.
 - Store it in the user's state directory (for example `~/.local/state/myna/` or `%LOCALAPPDATA%\myna\`) with owner-only permissions. Don't write it into the project directory, where it can be committed by accident.
 - The log is sensitive: it will contain anything the guest typed, including passwords. Support `myna audit prune`, set a retention default, and never log host output.
 - Tell guests they are being logged (see 6.5).
 
 ### 7.4 Destructive-command guardrail
+
 **A regex over the DataChannel stream will not work.** The channel carries raw keystrokes one at a time, with backspaces, arrow keys, tab completion and history recall. A guest can press Up and Enter to re-run an old `rm -rf`, and the dangerous text never crosses the wire. The check has to happen when Enter is pressed, using the shell's own line buffer.
 
 - **Design spike first.** Prove that in PowerShell (your own shell) a hook can pause an Enter, read the line, ask the wrapper whether to allow it, and continue. Only after that works, extend it.
@@ -220,6 +240,7 @@ The answers decide how much of Phases 14 and 12 (the single-binary question) is 
 - Keep the pattern list in a configurable file.
 
 ### 7.5 Be honest in the docs
+
 - State plainly what the guardrail does not catch: scripts, aliases, functions, `curl | sh`, anything typed inside vim or a REPL, and obfuscated commands. Publish the bypass test results next to the feature.
 
 **Done when:** a test matrix of caught and uncaught commands exists and is published. Freeze stops a running guest instantly and unfreezing replays nothing. The audit log is complete, protected, and prunable.
@@ -283,6 +304,7 @@ Resume the paused UI work with the native model in mind.
 - **Self-hosting:** document how to run your own signaling server (Worker or `npm run signal`), so users don't depend on yours.
 
 ### Weight budgets (measure, record in the repo, then claim)
+
 - npm install size, and dependency count.
 - Browser bundle, gzipped.
 - Signaling server: memory and Durable Object usage at a realistic number of rooms.
