@@ -7,6 +7,7 @@ import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
 import * as path from "path";
 import * as fs from "fs";
+import { printSessionPanel } from "../ui/panel.js";
 
 interface GuardrailRequest { cmd: string; res: http.ServerResponse; }
 let pendingGuardrail: GuardrailRequest | null = null;
@@ -251,10 +252,10 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
       if (msg.type === "room-created") {
         const domain = getShareDomain();
-        console.log(`\n======================================`);
-        console.log(` ROOM CODE : ${msg.code}`);
-        console.log(` SHARE LINK: ${domain}/#${msg.code}`);
-        console.log(`======================================\n`);
+        printSessionPanel({
+          roomCode: msg.code,
+          shareLink: `${domain}/#${msg.code}`,
+        });
       }
 
       if (msg.type === "join-request") {
