@@ -1,12 +1,10 @@
 /// <reference types="@cloudflare/workers-types" />
 export interface Env {
   MYNA_ROOMS: DurableObjectNamespace;
-  ASSETS: Fetcher;
-  ROOM_SECRET?: string;
+  ROOM_SECRET: string;
   METERED_DOMAIN?: string;
   METERED_API_KEY?: string;
-  TURN_USERNAME?: string;
-  TURN_CREDENTIAL?: string;
+  ASSETS: Fetcher;
 }
 
 const ipRateLimit = new Map<string, { hits: number; expire: number }>();
@@ -98,9 +96,11 @@ interface SignalMessage {
 }
 
 export class MynaRooms {
+  private roomIceServers: any[] | null = null;
+
   constructor(
     private readonly ctx: DurableObjectState,
-    private readonly env: Env,
+    private readonly env: Env
   ) { }
 
   async fetch(request: Request): Promise<Response> {
@@ -140,8 +140,15 @@ export class MynaRooms {
 
     if (msg.type === "create-room") {
       if (host || own.role === "host") return;
+
       socket.serializeAttachment({ role: "host", code } satisfies SocketData);
       socket.send(JSON.stringify({ type: "room-created", code }));
+
+      if (!this.roomIceServers) {
+        this.fetchDynamicTurn().then(servers => {
+          this.roomIceServers = servers;
+        }).catch(() => { });
+      }
       return;
     }
 
@@ -185,9 +192,12 @@ export class MynaRooms {
         const role = msg.role === "control" ? "control" : "view";
         target.serializeAttachment({ ...targetData, status: "approved" } satisfies SocketData);
 
-        const iceServers = await this.getIceServers();
-        target.send(JSON.stringify({ type: "joined", code, role, iceServers }));
-        socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers }));
+        if (!this.roomIceServers) {
+          this.roomIceServers = await this.fetchDynamicTurn();
+        }
+
+        target.send(JSON.stringify({ type: "joined", code, role, iceServers: this.roomIceServers }));
+        socket.send(JSON.stringify({ type: "peer-joined", code, peerId: targetId, role, iceServers: this.roomIceServers }));
       } else if (msg.type === "deny-peer" && targetData.status === "pending") {
         target.send(JSON.stringify({ type: "join-denied", code }));
         target.serializeAttachment({ role: "closed" } satisfies SocketData);
@@ -249,33 +259,19 @@ export class MynaRooms {
     try { return socket.deserializeAttachment() as SocketData | undefined; } catch { return undefined; }
   }
 
-  private async getIceServers(): Promise<RTCIceServer[]> {
-    const defaultServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  private async fetchDynamicTurn(): Promise<any[]> {
+    const defaultServers = [{ urls: "stun:stun.metered.live:80" }];
 
     if (this.env.METERED_DOMAIN && this.env.METERED_API_KEY) {
       try {
-        const res = await fetch(`https://${this.env.METERED_DOMAIN}.metered.live/api/v1/turn/credentials?apiKey=${this.env.METERED_API_KEY}`);
+        const res = await fetch(`https://${this.env.METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${this.env.METERED_API_KEY}`);
         if (res.ok) {
-          const data = await res.json() as RTCIceServer[];
-          return data;
+          return await res.json();
         }
       } catch (err) {
-        console.error("Dynamic TURN fetch failed, falling back to STUN/Static.", err);
+        console.error("[myna] Dynamic TURN fetch failed, falling back to STUN.", err);
       }
     }
-
-    if (this.env.TURN_USERNAME && this.env.TURN_CREDENTIAL) {
-      defaultServers.push({
-        urls: [
-          "turn:global.relay.metered.ca:80",
-          "turn:global.relay.metered.ca:443",
-          "turn:global.relay.metered.ca:443?transport=tcp",
-        ],
-        username: this.env.TURN_USERNAME,
-        credential: this.env.TURN_CREDENTIAL,
-      });
-    }
-
     return defaultServers;
   }
 }
