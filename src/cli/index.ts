@@ -12,6 +12,7 @@ import { startServer } from "../core/server.js";
 import { execSync } from "child_process";
 import { createBwrapSession } from "../core/bwrap.js";
 import { printBanner } from "./ui/banner.js";
+import { pruneAuditLog, getAuditLogPath } from "../core/audit.js";
 
 printBanner();
 
@@ -141,6 +142,20 @@ program
   .option("-p, --port <number>", "Port to listen on", "8080")
   .action((options) => {
     startServer(parseInt(options.port));
+  });
+
+program
+  .command("audit")
+  .description("Manage the session audit log")
+  .option("--prune", "Remove entries older than 30 days")
+  .action((options) => {
+    if (options.prune) {
+      const removed = pruneAuditLog();
+      console.log(`[myna] Pruned ${removed} old entries from audit log.`);
+    } else {
+      console.log(`[myna] Audit log is located at: ${getAuditLogPath()}`);
+      console.log(`[myna] Run 'myna audit --prune' to clear entries older than 30 days.`);
+    }
   });
 
 program.parse(process.argv);
