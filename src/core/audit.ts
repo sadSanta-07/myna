@@ -24,3 +24,24 @@ export function logGuestInput(peerId: string, input: string) {
   
   fs.appendFileSync(logFile, entry, { mode: 0o600 });
 }
+
+export function pruneAuditLog(): number {
+  const logFile = getAuditLogPath();
+  if (!fs.existsSync(logFile)) return 0;
+
+  const lines = fs.readFileSync(logFile, "utf8").split("\n");
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  
+  const keptLines = lines.filter(line => {
+    if (!line.trim()) return false;
+    const match = line.match(/^\[(.*?)\]/);
+    if (match) {
+      const logDate = new Date(match[1]).getTime();
+      return logDate > thirtyDaysAgo;
+    }
+    return false;
+  });
+
+  fs.writeFileSync(logFile, keptLines.length > 0 ? keptLines.join("\n") + "\n" : "", { mode: 0o600 });
+  return lines.length - keptLines.length;
+}
