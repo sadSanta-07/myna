@@ -34,12 +34,15 @@ npm link
 ```
 
 **Host:**
+
 ```
 myna up
 ```
+
 Share the link it prints.
 
 **Guest:** open `https://<signaling-host>/#<room-code>` in a browser, or run:
+
 ```
 myna join <room-code>
 ```
@@ -59,6 +62,7 @@ myna up --sandbox bwrap           # bubblewrap sandbox (Linux)
 myna up --sandbox -m rw           # mount your project read-write (default is read-only)
 myna up --no-replay               # don't send earlier terminal output to new guests
 ```
+
 Run `myna up --help` for the full list.
 
 ## Host controls
