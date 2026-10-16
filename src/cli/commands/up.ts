@@ -86,7 +86,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
       try { fs.chmodSync(pipePath, 0o600); } catch { }
     }
   });
-  gateServer.listen(41234, "127.0.0.1");
 
   setTimeout(() => {
     if (process.platform === "win32") {
@@ -163,7 +162,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     currentRequest = joinQueue.shift()!;
     process.stdout.write(
       `\n[myna] Peer (${currentRequest.peerId.slice(0, 4)}) wants to join as ${currentRequest.requestedRole}.\n` +
-      `       Press [Ctrl+A then C] Control | [Ctrl+A then V] View | [Ctrl+A then N] Deny: `
+      `       Press [Ctrl+] then C] Control | [Ctrl+] then V] View | [Ctrl+] then D] Deny: `
     );
   }
 
@@ -339,6 +338,8 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
           }
         };
 
+        let guestLineBuffer = "";
+
         dc.onmessage = (event) => {
           if (peerSession.role !== "control") return;
           if (isFrozen) return;
@@ -353,6 +354,42 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
             }
             if (m.type === "input" && typeof m.data === "string") {
               logGuestInput(peerId, m.data);
+
+              for (const char of m.data) {
+                if (char === "\r" || char === "\n") {
+                  const cmd = guestLineBuffer.trim();
+                  guestLineBuffer = "";
+
+                  if (cmd && isDangerousCommand(cmd)) {
+                    isFrozen = true;
+                    process.stdout.write(
+                      `\r\n\n⚠️  [myna] GUARDRAIL: Guest attempted dangerous command:\r\n` +
+                      `   > ${cmd}\r\n` +
+                      `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
+                    );
+                    pendingGuardrail = {
+                      cmd,
+                      res: {
+                        writeHead: () => { },
+                        end: (responseStr: string) => {
+                          const allowed = JSON.parse(responseStr).allowed;
+                          if (allowed) {
+                            session.write(m.data);
+                          } else {
+                            console.log(`\r\n[myna] Command blocked.`);
+                          }
+                        }
+                      }
+                    };
+                    return;
+                  }
+                } else if (char === "\b" || char === "\x7f") {
+                  guestLineBuffer = guestLineBuffer.slice(0, -1);
+                } else if (char.charCodeAt(0) >= 32) {
+                  guestLineBuffer += char;
+                }
+              }
+
               return session.write(m.data);
             }
           } catch { }
