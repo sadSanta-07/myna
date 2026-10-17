@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert";
 import { createLocalSession } from "../src/core/session.js";
 
@@ -36,4 +36,9 @@ test("kill terminates the process and fires onExit", async () => {
     });
     session.kill();
     await exited;
+});
+
+// Forcefully kill the process to release node-pty's background pipes
+after(() => {
+    setTimeout(() => process.exit(0), 100);
 });

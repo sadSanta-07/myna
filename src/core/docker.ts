@@ -64,9 +64,9 @@ export async function startContainer(
     HostConfig: {
       Binds: binds,
       NetworkMode: networkMode,
-      Memory: 512 * 1024 * 1024,
-      MemorySwap: 512 * 1024 * 1024,
-      Nanocpus: 1000000000,
+      Memory: 256 * 1024 * 1024,
+      MemorySwap: 256 * 1024 * 1024,
+      Nanocpus: 500000000,
       PidsLimit: 100,
       SecurityOpt: ["no-new-privileges:true"],
       CapDrop: ["ALL"],

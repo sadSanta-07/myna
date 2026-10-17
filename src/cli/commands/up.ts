@@ -1,16 +1,14 @@
 import WebSocket from "ws";
-import * as http from "http";
+import * as path from "path";
+import * as fs from "fs";
+import * as net from "net";
+import * as os from "os";
 import { createPeerConnection } from "../../core/peer.js";
 import { Session } from "../../core/types.js";
 import { getSignalUrl, getShareDomain } from "../../core/config.js";
 import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
-import * as path from "path";
-import * as fs from "fs";
-import * as net from "net";
-import * as os from "os";
 import { printSessionPanel } from "../ui/panel.js";
-import { encryptSignal, decryptSignal } from "../../core/crypto.js";
 
 interface GuardrailRequest {
   cmd: string;
@@ -19,12 +17,18 @@ interface GuardrailRequest {
     end: (data: string) => void;
   };
 }
+
 let pendingGuardrail: GuardrailRequest | null = null;
 let isFrozen = false;
 let guardrailTimeout: NodeJS.Timeout | null = null;
-const sessionPassword = Math.random().toString(36).substring(2, 6) + "-" + Math.random().toString(36).substring(2, 6);
 
-export async function runUp(session: Session, options: { noReplay?: boolean } = {}) {
+export async function runUp(session: Session, options: { noReplay?: boolean; verbose?: boolean } = {}) {
+  const logVerbose = (...args: any[]) => {
+    if (options.verbose) {
+      console.log(...args);
+    }
+  };
+
   const signalWsUrl = getSignalUrl();
   const signalHttpUrl = signalWsUrl.replace(/^ws/, "http");
 
@@ -142,7 +146,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   });
 
   ws.on("close", () => {
-    console.log("\n[myna] Signaling connection closed");
+    logVerbose("\n[myna] Signaling connection closed");
   });
 
   interface PeerSession {
@@ -158,7 +162,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
   const activePeers = new Map<string, PeerSession>();
   let outputHistory = "";
-  const MAX_HISTORY = 100000;
+  const MAX_HISTORY = 20000;
 
   function attemptSend(peer: PeerSession, chunk?: string) {
     if (chunk) peer.outboundQueue.push(chunk);
@@ -208,7 +212,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     process.stdin.setEncoding("utf8");
 
     process.stdin.on("data", (key: string) => {
-      // Leader Key Trigger changed to Ctrl+] (\x1d)
       if (key === "\x1d") {
         leaderActive = true;
         return;
@@ -242,7 +245,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
             const role = cmd === "c" ? "control" : "view";
             ws.send(JSON.stringify({ type: "approve-peer", peerId, role }));
             console.log(`\n[myna] Approved ${peerId.slice(0, 4)} as ${role}`);
-          } else if (cmd === "d") { // Changed from 'n' to 'd' (deny)
+          } else if (cmd === "d") {
             ws.send(JSON.stringify({ type: "deny-peer", peerId }));
             console.log(`\n[myna] Denied ${peerId.slice(0, 4)}`);
           }
@@ -251,14 +254,12 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
           return;
         }
 
-        // Freeze Toggle
         if (cmd === "f") {
           isFrozen = !isFrozen;
           console.log(`\n[myna] Session ${isFrozen ? "FROZEN" : "UNFROZEN"}`);
           return;
         }
 
-        // Revoke All
         if (cmd === "x") {
           console.log("\n[myna] Revoking all active peers...");
           for (const [peerId, peer] of activePeers.entries()) {
@@ -276,9 +277,9 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   session.onData((data: string) => {
     process.stdout.write(data);
 
-    outputHistory += data;
-    if (outputHistory.length > MAX_HISTORY) outputHistory = outputHistory.slice(-MAX_HISTORY);
-
+    if (outputHistory.length < MAX_HISTORY) {
+      outputHistory += data;
+    }
     for (const peer of activePeers.values()) {
       if (peer.channelOpen && peer.dc.readyState === "open") {
         attemptSend(peer, data);
@@ -354,6 +355,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
           outboundQueue: [],
         };
         activePeers.set(peerId, peerSession);
+
         dc.bufferedAmountLowThreshold = 32768;
         dc.onbufferedamountlow = () => {
           const p = activePeers.get(peerId);
@@ -369,7 +371,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         };
 
         dc.onopen = () => {
-          console.log(`\n[myna] data channel open for ${peerId.slice(0, 4)}`);
+          logVerbose(`\n[myna] data channel open for ${peerId.slice(0, 4)}`);
           peerSession.channelOpen = true;
           try {
             dc.send("\r\n\x1b[33m⚠️  [myna] Notice: Your input in this session is being audited and logged by the host.\x1b[0m\r\n");
@@ -443,6 +445,21 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
               return session.write(m.data);
             }
           } catch { }
+        };
+
+        pc.oniceconnectionstatechange = async () => {
+          logVerbose(`[myna] ICE state for ${peerId.slice(0, 4)}: ${pc.iceConnectionState}`);
+
+          if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+            logVerbose(`[myna] Connection blip detected for ${peerId.slice(0, 4)}. Attempting ICE restart...`);
+            try {
+              const offer = await pc.createOffer({ iceRestart: true });
+              await pc.setLocalDescription(offer);
+              ws.send(JSON.stringify({ type: "sdp-offer", peerId, sdp: offer }));
+            } catch (err) {
+              logVerbose(`[myna] ICE restart failed for ${peerId.slice(0, 4)}:`, err);
+            }
+          }
         };
 
         pc.onicecandidate = (event) => {

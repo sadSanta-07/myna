@@ -77,52 +77,19 @@ Host approval, `view` and `control` roles enforced on the host, several guests a
 
 `xterm.js` guest page with role selection, direct DataChannel to the host, TURN credentials held server-side, and `PROTOCOL.md`.
 
-### Repo state (`main`, checked 2026-10-14)
+### Current implementation status (history reviewed through 2026-10-16)
 
-This comes from a file inventory and written description, plus a direct read of `cloudflare/worker.ts`, `src/cli/commands/up.ts`, `src/core/peer.ts` and `src/core/types.ts`. Not yet read: `join.ts`, `session.ts`, `docker.ts`, `server.ts`, `public/index.js` and `PROTOCOL.md`. Treat anything about those files as a map to confirm.
+The old repository snapshot and code-review notes below were written before the native-first pivot and are no longer an accurate description of `main`. The following reflects the later implementation work recorded in the supplied chat history.
 
-- **Signaling:** `cloudflare/worker.ts` holds the Worker and the `MynaRooms` Durable Object (declared as a SQLite class in `wrangler.toml`). It is deployed and `/health` returns OK. A second, in-memory Node signaling server also exists in `src/core/server.ts`.
-- **CLI:** `src/bin/myna.ts` calls `src/cli/index.ts` (Commander), which registers `commands/up.ts` and `commands/join.ts`. A working global `myna` command exists through `npm link`.
-- **What `myna up` does today:** it defaults to **Docker**. It builds `./Dockerfile` as `myna-workspace:latest` and checks `myna.lock`, or uses `ubuntu:22.04` when there is no Dockerfile. `--local` selects a bare shell through `node-pty` with a warning that the host filesystem is exposed. **There is no `--sandbox` flag and native is not the default.** The native-first pivot is planned, not built.
-- **Core:** `session.ts` (node-pty), `docker.ts` (builds, containers, resource limits, attach), `peer.ts` (WebRTC and ICE/TURN configuration), `types.ts` (the `Session` interface).
-- **Browser guest:** `public/index.html`, `index.js` and `index.css`, served as Worker assets. `frontend/` is a separate Next.js landing site with several large video files.
-- **Tests:** `tests/` mixes real tests (`session.test.ts`, `docker.test.ts`) with manual scripts (`host-test.ts`, `peer-test.ts`, `hash-test.ts`, `lock-test.ts`, `docker-pty-test.ts`).
-- **CI:** one workflow, `reproducibility.yml`.
-- **Docs:** `docs/PROTOCOL.md`, `CLOUDFLARE_DEPLOY.md`, `AGENTS.md`, `README.md`, `ROADMAP.md`.
-- **Not yet independently verified:** the complete flow through the Worker (create room, approval, SDP and ICE exchange, data channel, terminal I/O). Only `/health` has been confirmed.
-- **Known inconsistency:** `up.ts` prints a share link on an old Render address while its WebSocket default is the Cloudflare Worker.
-- **Working tree:** clean and in sync with `origin/main`.
+- **CLI and backends:** `myna up` is native-first. Docker is selected with `--sandbox`; the Linux bubblewrap backend is available as an experimental option. The old `--local`/Docker-default description is stale.
+- **Native terminal UX:** host terminal passthrough, terminal restoration, resize policy, `Ctrl+]` leader-key actions, deliberate join approval, freeze/unfreeze, guest revocation, and no-replay support have been implemented.
+- **Guardrails and audit:** guest input is checked before reaching the shell; a PowerShell hook and Unix shell hook exist; local audit logging and `myna audit --prune` are implemented. The guardrail remains an accident-prevention layer, not a security boundary.
+- **Browser guest:** host-sized terminal rendering, scrolling, session-state banners, and disabled-by-default OSC 52 clipboard writes are implemented.
+- **Signaling:** the Worker uses per-room Durable Objects, state guards, signed room codes, request rate limiting, and socket closure on deny/revoke. Dynamic TURN credentials are fetched through Metered when configured, with STUN fallback.
+- **Security test suite:** `tests/security/` scripts and `docs/SECURITY_TESTS.md` were created. The supplied chat history reports the security checks passing, but this roadmap update has not rerun them; keep a fresh run log/CI artifact as release evidence.
+- **Known remaining security work:** no PAKE/comparison-code authenticated handshake yet; `SECURITY.md` and `docs/THREAT_MODEL.md` still need to be confirmed/updated for the native model. Verify that secrets fail closed when configuration is missing, and that rate limiting and TURN expiry behave as intended in the deployed environment.
 
-### Code review (read from `worker.ts`, `up.ts`, `peer.ts`, `types.ts`)
-
-**Already right:**
-
-- The trust boundary in the Worker is correct. Only the host socket can approve, deny or revoke. Handshake messages are relayed only for approved peers, and the Worker stamps the sender's `peerId` itself.
-- The host checks a guest's role before parsing any DataChannel message, and an unknown role falls back to `view`.
-- Rooms use the WebSocket Hibernation API, each guest has its own connection, and input uses JSON framing (`type: "input"`).
-
-**Fix before anyone but you uses native mode (P0):**
-
-1. **Typing `c`, `v` or `n` answers the join prompt.** In `up.ts`, while a request is pending, every host keystroke is swallowed and `c` grants control. A host typing `cd` or `cat` when a request arrives grants a stranger control of their real shell by accident, and the rest of what they typed is lost. Approvals must need a deliberate action that ordinary typing can't produce (see 6.4).
-2. **`dotenv` loads the current directory's `.env`.** `peer.ts` calls `dotenv.config()`. Run from a project, `myna up` loads that project's secrets into Myna's environment, and if `session.ts` still passes `process.env` to the shell, into the shell a guest controls. It can also override `TURN_*`.
-3. **Host Ctrl+C kills Myna and never reaches the shell.** In native mode you couldn't interrupt your own running command. Ctrl+X (revoke) also collides with readline. In sandbox mode the same handler never calls `session.kill()`, so the container is left running.
-4. **A guest's resize message resizes the host's PTY** (`session.resize(m.cols, m.rows)`). In native mode that corrupts the host's screen.
-5. **Debug output goes to the host's terminal.** `peer.ts` and `up.ts` use `console.log`, which writes into the middle of the shared shell.
-6. **Output replay.** Each new guest receives up to 100,000 characters of history. In native mode that is everything your terminal showed since `myna up`, which may include secrets.
-
-**Fix soon (P1):**
-7. **The host ignores the ICE servers the Worker sends.** `up.ts` calls `createPeerConnection("host")` with no second argument, so the host uses the defaults in `peer.ts`, which read `TURN_*` from a local `.env`. An npm user has none, so their host is STUN-only.
-8. **Static TURN credentials are open to anyone, not only approved guests.** The Worker sends `TURN_USERNAME` and `TURN_CREDENTIAL` to whoever the host approves, but anyone can be a host: an attacker opens two sockets, creates a room, approves their own second socket and receives your credentials. The Metered free plan is 500 MB, and exhausting it breaks relays for every real user. The Worker is live, so treat this as P0. Rate-limit `create-room` per IP and issue short-lived credentials (Metered's API, or Cloudflare's own TURN service, which is worth evaluating since you are already on Cloudflare).
-9. **One Durable Object holds every room in the world** (`idFromName("myna-global-signaling")`). Use one per room.
-10. **No rate limits or caps.** The room code is 8 hex characters (32 bits), not 4 digits as first reported. It's better than I assumed, but there is no throttling, and each guess that hits a live room puts a prompt on the host's terminal.
-11. **`deny-peer` and `revoke-peer` never close the guest's WebSocket.** They only mark it closed. `webSocketClose` also calls `host.send` without a try/catch.
-12. **Unhandled exceptions.** `up.ts` calls `JSON.parse` on server messages and awaits WebRTC calls with no try/catch, and Node exits on an unhandled rejection. A malformed message or one failed `setRemoteDescription` kills the host's session. A guest controls the SDP and ICE it sends, so even a `view` guest can end your session with one malformed answer.
-13. **`workers.dev` personal subdomain baked into the CLI defaults,** and a different, stale Render address for the share link. Put a custom domain in front before releasing, so you can move infrastructure without breaking installed CLIs.
-14. **No origin tagging and no gate.** Host and guest input both call `session.write(...)` (planned in 6.1 and 7.1).
-
----
-
-## Round 0: ask real developers now (runs alongside Phase 6)
+## Round 0: developer validation (still outstanding)
 
 Nobody knows yet whether people want this. Find out cheaply.
 
@@ -135,151 +102,89 @@ Nobody knows yet whether people want this. Find out cheaply.
 - Trusted friends only. The build is not hardened.
 - Before testers, spend an hour with termishare, shwim and tmate. For each, note what a guest needs installed, how the host approves, and what protects the host. Ask testers which they'd pick and why.
 
-The answers decide how much of Phases 14 and 12 (the single-binary question) is worth building.
+The answers should decide how much of Phase 14 and the Phase 12 single-binary question is worth building.
 
 ---
 
-## Phase 6: Native-first core
+## Phase 6: Native-first core ✅
 
-**Goal:** `myna up` shares your actual shell, and it feels like using your terminal normally. No Docker needed.
+**Status: implemented.** `myna up` shares the host's actual shell by default; Docker is optional through `--sandbox`. The native terminal passthrough, leader-key controls, approval flow, resize behavior, shell-exit cleanup, no-replay option, shared configuration, and signaling state guards were implemented during the pivot.
 
-### 6.0 Repo cleanup that unblocks everything (do first)
+Key behavior now in place:
 
-- **One source of truth for URLs.** Create `src/core/config.ts` with the default signaling URL and a share-link base derived from it, and use it in `up.ts` and `join.ts`. This fixes the Render and Cloudflare mismatch.
-- **Prove the Worker end to end.** Write a scripted test that runs create-room, join, approve, SDP, ICE and a data-channel round trip against `wrangler dev` (and later the deployed Worker), and run it in CI. Until it exists, "works through Cloudflare" is a claim, not a fact.
-- **Two signaling servers.** Make `cloudflare/worker.ts` the canonical one and keep `src/core/server.ts` for local development and self-hosting only if it earns its place. If both stay, write conformance tests from `docs/PROTOCOL.md` and run them against both. Two implementations drift apart quietly.
-- **Use the ICE servers the Worker sends.** Pass `msg.iceServers` from `peer-joined` into `createPeerConnection`. Then remove TURN handling from the CLI entirely.
-- **Remove `dotenv` from the CLI.** Configuration comes from real environment variables or a Myna config file in the user's config directory, never from the current directory.
-- **Catch errors.** Wrap the message handler in `up.ts` (and the one in `join.ts`) in try/catch so one bad message or failed negotiation drops a guest and not the whole session. Add a `close` handler on the signaling socket in `up.ts`, since the host doesn't notice today if signaling drops.
-- **Sort `tests/`.** Move the manual scripts (`host-test`, `peer-test`, `hash-test`, `lock-test`, `docker-pty-test`) to `scripts/` or delete them. Keep the `*.test.ts` files and make `npm test` run them. Confirm `session.test.ts` passes after the `Session` interface changes.
-- **CI.** Add a `ci.yml` that installs, runs `tsc --noEmit` and runs the tests. Restrict `reproducibility.yml` to changes to `Dockerfile` and `myna.lock`, since it only matters for sandbox mode.
-- **Repo weight.** `frontend/public` holds several video files (`.mp4`, `.webm`). Run `git count-objects -vH` to see the clone size. Move media to external hosting or Git LFS, and keep `frontend/` out of the npm package (use a `files` whitelist) and out of the root install.
-- **Review before promoting the repo.** Read `AGENTS.md`, `CLOUDFLARE_DEPLOY.md` and `wrangler.toml` for personal or account details.
+- Native backend by default; Docker sandbox is opt-in.
+- Host keyboard input is separate from guest input, and the host's terminal size drives native mode.
+- `Ctrl+]` is the leader key for approval and session controls, avoiding ordinary shell-key collisions.
+- Guest roles and approval are enforced; denied/revoked peers are disconnected.
+- Room codes are signed and signaling abuse controls are in place.
 
-### 6.1 Backend selection
-
-- Today `myna up` defaults to Docker and `--local` selects the shell. Flip this: native by default, `--sandbox` for Docker, and keep `--local` as a hidden alias for one release so existing habits and scripts don't break.
-- `myna up` uses the native backend. `myna up --sandbox` uses Docker (options: `--image`, `--mount ro|rw|none`).
-- Keep origin out of the `Session` interface. Put the Input Gate (7.1) in front of `session.write` and tag input at the gate, since a backend shouldn't know who typed. Do add a `backend: "native" | "docker"` field so the UI can say which guardrails apply, and make `onData` return an unsubscribe function.
-- Keep the `Session` interface as the single seam between transport and backend.
-
-### 6.2 Host terminal passthrough
-
-- **Quiet by default.** Any write to stdout lands inside the shared shell. Move the `console.log` calls in `peer.ts` and `up.ts` behind `--verbose`, and send them to a log file or one reserved status line.
-- Put the host's terminal in raw mode, forward host keystrokes to the PTY, and mirror PTY output to the host's screen and to every guest.
-- Restore the terminal on every exit path: normal exit, shell exit, Ctrl+C handling, uncaught exceptions and signals. A crash must never leave the host's terminal in raw mode.
-- The shell's exit ends the session, and tells guests why.
-
-### 6.3 Resize policy
-
-- `up.ts` currently applies a guest's resize message with `session.resize`. Drop that in native mode.
-- PTY size follows the host's terminal. Ignore guest resize messages in native mode. In sandbox mode the existing behavior can stay.
-- Tell guests the host's dimensions so they render correctly (the CLI guest and the browser both need this).
-- Output goes to guests as raw strings while input comes back as JSON, so there is no way to send the host's size, a "frozen" notice or a "session is logged" banner. Add a second DataChannel (`control`) for those messages and leave the terminal channel untouched.
-
-### 6.4 Leader key and host commands
-
-- **Answer join prompts through the leader.** For example leader then `a` (approve as view), leader then `c` (approve as control), leader then `n` (deny). Ordinary keys never answer a prompt and are never swallowed while one is pending. Cap the pending queue (`joinQueue` in `up.ts` is unbounded).
-- **Ctrl+C goes to the shell in native mode.** Quit Myna with a leader command or by exiting the shell.
-- One configurable leader key, then a letter: freeze or unfreeze, revoke all guests, list guests, help.
-- Choose the default by testing it inside bash, zsh, PowerShell, vim, tmux and less.
-
-### 6.5 Consent flow
-
-- **Output replay is a privacy decision.** Today every new guest gets up to 100,000 characters of history. In native mode, tell the host before approving, and add `--no-replay`. Consider no replay by default for `control` guests.
-- The approval prompt shows the requested role. The default answer is `view`.
-- Granting `control` on the native backend requires typing a confirmation once per session, with plain text such as: "This person can run anything you can in this shell."
-- Show every guest a banner saying the session is logged (Phase 7.3).
-
-### 6.6 Join-code security and signaling abuse (required before native mode is used by anyone but you)
-
-- The code is 8 hex characters (32 bits), made in `cloudflare/worker.ts`. There is no rate limit, and every guess that hits a live room puts a prompt on the host's terminal. With a native shell, one mistaken approval is a full compromise.
-- **One Durable Object per room.** The Worker generates the room ID, routes by `idFromName(code)`, and guests connect with the code in the URL. Rooms are isolated by construction, idle rooms disappear, one busy room can't slow the others, and rate limits are per room.
-- Rate-limit join attempts per IP and per room. Cap pending requests (a handful), guests per room, and message size. Give rooms a TTL and a maximum age.
-- Use a longer random token (about 40 bits or more, base-32 without look-alike characters) in the link, and keep the short code for display only.
-- The Worker already uses the Hibernation API (`ctx.acceptWebSocket`, `webSocketMessage`). Keep it.
-- Close the guest's socket with a reason on `deny-peer` and `revoke-peer`, and wrap `host.send` in `webSocketClose` in a try/catch.
-- Add state guards. Today a socket can send `create-room` or `join-room` repeatedly, and an approved guest can send `create-room` and become a host mid-session. Ignore both once a socket already has a role and a code.
-
-**Done when:** `myna up` works in PowerShell, bash and zsh. A guest joins from the CLI and from a link. Both the host and the guest can type. Resizing the host window works. Ctrl+C reaches the shell. A forced crash leaves the host's terminal usable. Brute-forcing codes is rate-limited, shown by a test.
+**Follow-up validation:** re-run the full end-to-end flow on a clean install and across supported shells. Do not treat source presence alone as proof of a release gate.
 
 ---
 
-## Phase 7: Guardrails ("seatbelt")
+## Phase 7: Guardrails (“seatbelt”) ✅
 
-**Goal:** make accidents unlikely and misuse visible, with almost no interruption for the host.
+**Status: implementation recorded as complete; security limitations remain explicit.**
 
-### 7.1 The Input Gate
+- **7.1 Input gate:** guest input passes through role/freeze and guardrail checks before it reaches the session. Host typing is not intended to be filtered.
+- **7.2 Freeze:** leader-key freeze/unfreeze drops guest input rather than queueing it.
+- **7.3 Audit log:** guest input is logged locally outside the project directory; `myna audit --prune` supports retention cleanup. The log is sensitive and must remain owner-only.
+- **7.4 Destructive-command guardrail:** shell-hook/IPC plumbing and a host Allow/Deny prompt have been implemented. Keep shell coverage in the regression matrix; a command filter is not a security boundary.
+- **7.5 Limitations:** `docs/SECURITY_TESTS.md` records verification cases and guardrail limitations. Keep it aligned with actual test results, including bypasses through scripts, aliases, REPLs, and obfuscated commands.
 
-- One module that every guest input chunk passes through: role check, then freeze, then audit, then guardrail.
-- Unit-test it against a fake backend. Rule 4 applies: dropped means discarded.
+**P0 release blocker:** the reviewed shell-hook path has fail-open cases when the IPC/helper is missing, unavailable, or returns no usable response. Fix those paths so a safety check cannot silently allow a risky command, and add regression tests for every failure mode before calling Gate A ready.
 
-### 7.2 Freeze
-
-- Leader key plus `f` toggles freeze. The guest's input is discarded and the connection stays up.
-- Show a status line to the host and a banner to the guest ("input paused by host").
-- Add optional time-limited control that expires on its own.
-
-### 7.3 Audit log
-
-- Log guest input with timestamps and the guest identifier, plus the reconstructed command line when the guardrail hook provides it.
-- Store it in the user's state directory (for example `~/.local/state/myna/` or `%LOCALAPPDATA%\myna\`) with owner-only permissions. Don't write it into the project directory, where it can be committed by accident.
-- The log is sensitive: it will contain anything the guest typed, including passwords. Support `myna audit prune`, set a retention default, and never log host output.
-- Tell guests they are being logged (see 6.5).
-
-### 7.4 Destructive-command guardrail
-
-**A regex over the DataChannel stream will not work.** The channel carries raw keystrokes one at a time, with backspaces, arrow keys, tab completion and history recall. A guest can press Up and Enter to re-run an old `rm -rf`, and the dangerous text never crosses the wire. The check has to happen when Enter is pressed, using the shell's own line buffer.
-
-- **Design spike first.** Prove that in PowerShell (your own shell) a hook can pause an Enter, read the line, ask the wrapper whether to allow it, and continue. Only after that works, extend it.
-- Per-shell hooks: PowerShell via a PSReadLine key handler on Enter, zsh by wrapping the `accept-line` widget, bash via `bind -x` or the `DEBUG` trap, fish via its preexec event. `cmd.exe` has no hook and is unsupported.
-- Unsupported shell or failed hook: say so and require explicit acknowledgment (rule 5).
-- Only prompt for guest-originated lines. The host's own commands are never intercepted.
-- Use a risk check, not bare patterns. `rm -rf node_modules` should pass. `rm -rf /`, `rm -rf ~`, `dd of=/dev/...`, `mkfs`, `git push --force`, `Remove-Item -Recurse -Force` on a home or root path, `format`, `shutdown`, and `DROP TABLE` should hold.
-- The prompt appears on one reserved line of the host's terminal: allow or deny, defaulting to deny after a timeout so an absent host isn't blocking the session.
-- Keep the pattern list in a configurable file.
-
-### 7.5 Be honest in the docs
-
-- State plainly what the guardrail does not catch: scripts, aliases, functions, `curl | sh`, anything typed inside vim or a REPL, and obfuscated commands. Publish the bypass test results next to the feature.
-
-**Done when:** a test matrix of caught and uncaught commands exists and is published. Freeze stops a running guest instantly and unfreezing replays nothing. The audit log is complete, protected, and prunable.
+**Do not claim:** that the guardrail makes a real host shell safe for a hostile guest. Use the sandbox or do not grant control when the guest is untrusted.
 
 ---
 
-## Phase 8: Sandbox backends (the second option)
+## Phase 8: Sandbox backends ✅
 
-- **8.1 Docker backend:** `--sandbox` with your own Dockerfile or a small default image, optional project mount (`ro` by default, `rw` only with an explicit flag and a warning), and the reproducibility check against `myna.lock`.
-- **8.2 Hardening:** CPU, memory and pid limits, dropped capabilities, `no-new-privileges`, a non-root user, a deliberate network policy (default networking can reach the internet, and on Docker Desktop it can reach services on your machine through `host.docker.internal`), and never mount the Docker socket.
-- **8.3 bubblewrap backend (Linux, experimental):** a read-only bind of the host's `/usr` plus a throwaway home directory and no access to `~/.ssh`, with no daemon. Some distributions restrict unprivileged user namespaces, so test on your target distributions.
-- **8.4 macOS:** evaluate `sandbox-exec`. It is marked deprecated by Apple, so check that it still works on current macOS before committing.
-- **8.5 Windows:** Docker or WSL is the sandbox. There is no cheap unprivileged equivalent, so document it.
-- **Never write your own isolation.** A chroot alone is not a sandbox.
+**Status: backend work implemented.** Docker sandbox mode and the experimental Linux bubblewrap backend have been added alongside the native backend. Keep this phase marked complete for implementation, while treating platform-specific isolation testing as a release-validation task.
 
-**Done when:** `myna up --sandbox` works, fork-bomb and path-escape tests pass, and the docs say exactly what each backend does and does not isolate.
+- **Docker:** `myna up --sandbox` selects Docker; mount modes and container resource/security options are part of the sandbox path.
+- **bubblewrap:** experimental Linux backend; behavior depends on distribution support for unprivileged user namespaces.
+- **Platform boundaries:** Windows relies on Docker/WSL for isolation; macOS isolation must be described conservatively.
+- Never mount the Docker socket into an untrusted session, and never describe a chroot alone as a sandbox.
 
----
-
-## Phase 9: Browser guest for native mode
-
-Resume the paused UI work with the native model in mind.
-
-- Render at the host's dimensions and allow scrolling when the guest's window is smaller.
-- Show clear states: waiting for approval, view, control, frozen, logged, revoked, host left.
-- Keep it light. Prefer the default renderer, and add the WebGL addon only if it is worth its size. Record the gzipped bundle size.
-- Treat host output as untrusted in the browser. Keep clipboard-write escape sequences (OSC 52) disabled by default and only open plain `http(s)` links.
-
-**Done when:** a guest joins from a phone on mobile data and the experience matches the CLI guest.
+**Validation still required before public use:** run fork-bomb/resource-limit and path-escape tests against the actual backends and record the results for each supported OS. “Implemented” is not the same as independently proven isolation.
 
 ---
 
-## Phase 10: Trust, privacy and abuse resistance
+## Phase 9: Browser guest for native mode ✅
 
-- **Authenticated handshake:** use a PAKE (password-authenticated key exchange, as magic-wormhole does) or a short comparison code so that a malicious signaling server can't sit in the middle. Evaluate current JavaScript libraries before choosing one.
-- **TURN credentials:** the Worker currently hands the same static credentials to every approved guest. Mint short-lived per-session credentials instead (the Metered dashboard documents expiring credentials), and monitor usage.
-- **Signaling abuse:** per-IP limits, connection caps, and logs that don't retain more than needed.
-- **Documents:** `SECURITY.md` with a reporting contact and `docs/THREAT_MODEL.md` rewritten for the native model. Its non-goals include "a control guest can do anything the host can" and "guardrails are accident prevention."
-- **Claims review:** read every sentence in the README and website against what is verified.
+**Status: implemented.**
+
+- Browser terminal rendering follows the host's dimensions and supports scrolling for smaller guest windows.
+- The UI shows session states such as waiting for approval, view/control, frozen, revoked, and host left.
+- OSC 52 clipboard-write remains disabled by default; terminal output must be treated as untrusted content.
+
+**Validation still required:** verify the full browser flow from a phone on mobile data and check the browser UI against the CLI guest on the deployed Worker.
+
+---
+
+## Phase 10: Trust, privacy and abuse resistance — in progress
+
+**Completed implementation:**
+
+- [x] Per-room Durable Objects and signaling state guards.
+- [x] Signed room codes to reject forged codes before room work is performed.
+- [x] Per-IP request rate limiting in the Worker.
+- [x] Deny/revoke socket closure and guards against role/state reuse.
+- [x] Dynamic TURN credential retrieval through Metered when configured, with STUN fallback.
+- [x] Security attack scripts and a documented verification checklist in `tests/security/` and `docs/SECURITY_TESTS.md`.
+
+**Still required for the trust milestone:**
+
+- [ ] **Authenticated peer handshake:** choose and implement a reviewed PAKE or short comparison-code protocol so a malicious/compromised signaling server cannot silently mediate the peer handshake. Evaluate current JavaScript libraries before choosing one; document key derivation, transcript binding, replay handling, and failure behavior.
+- [ ] **Secrets fail closed:** remove weak hard-coded fallback secrets from production paths. Startup/deploy must fail clearly when required signing secrets are absent; provide a deliberate local-development path rather than a production fallback.
+- [ ] **Rate-limit durability and abuse behavior:** document the current per-isolate/in-memory limiter's scope and decide whether a Durable Object or other shared limiter is required for production. Test limits across isolates and verify pending-join/guest/message caps.
+- [ ] **TURN lifecycle:** prove credentials actually expire as expected with the configured Metered plan, ensure missing/failed credentials degrade safely, and add usage/abuse monitoring or documented operational checks.
+- [ ] **Security documentation:** add `SECURITY.md` with a reporting contact and update `docs/THREAT_MODEL.md` for native-first sharing. State that a control guest can do anything the host can, guardrails are not a security boundary, signaling sees room metadata/IP candidates, and sandbox guarantees vary by backend.
+- [ ] **Evidence:** run the security suite against `wrangler dev` and the deployed Worker; save the output/CI artifact. History reports the checks passing, but do not treat that report as a substitute for a reproducible current run.
+- [ ] **Claims review:** review every README and website security/privacy claim against verified behavior.
+
+**Done when:** the authenticated handshake is implemented and tested, the secrets/rate-limit/TURN configuration has explicit safe failure modes, the threat model matches the code, and the security test evidence is reproducible.
 
 ---
 
@@ -341,7 +246,7 @@ Small, ephemeral, session-scoped, no accounts and nothing stored on a server.
 - **README:** a one-paragraph pitch, a 30-second demo GIF, a three-command quickstart, the trust-mode table above, an architecture diagram, and a short security-model summary.
 - **Comparison:** be accurate about tmate and upterm (relay-based), termishare (WebRTC peer to peer), shwim (end-to-end encrypted through a PAKE), VS Code Live Share and Codespaces. Check each project's current features first. Treat these as differentiators to test, not facts to assume: a guest who needs only a browser, host approval with per-guest roles, guardrails with an audit log, and an optional sandbox.
 - **Contributors:** `CONTRIBUTING.md`, a local-development guide, templates, a code of conduct, and a few `good first issue` tickets.
-- **Launch:** after Phases 10 and 13. Write up the engineering story (the ICE failure that needed TURN, the Docker image ID that changed on every build, and why a regex over keystrokes can't be a guardrail), then post a Show HN and to r/commandline.
+- **Launch:** after the remaining Phase 10 work and Phase 13 validation. Write up the engineering story (the ICE failure that needed TURN, the Docker image ID that changed on every build, and why a regex over keystrokes can't be a guardrail), then post a Show HN and to r/commandline.
 - A user base isn't guaranteed. What you control is a first run that works in two minutes, a clear reason to choose this over tmate, and honest security claims.
 
 ---
@@ -362,8 +267,8 @@ Small, ephemeral, session-scoped, no accounts and nothing stored on a server.
 
 ## Order and release gates
 
-1. Round 0 starts now and runs alongside Phase 6.
-2. **Gate A, native mode usable by others:** Phase 6 done, including 6.6 (join-code security), plus the freeze key and the audit log from Phase 7.
-3. **Gate B, any public announcement:** Phases 7, 8 and 10 done, and the docs reviewed for claims.
-4. Phase 13 comes before Phase 14, so new features are pulled by users and not pushed by guesses.
-5. A phase is done when its done criteria are met with evidence (logs, a CI run, a recording), not when it seemed to work.
+1. Round 0 developer validation can start now; it does not require adding more features first.
+2. **Gate A, native mode usable by others:** Phase 6–9 features are present, but Gate A is not release-ready until the guardrail/IPC fail-open paths are fixed, a fresh security suite passes, and fail-closed behavior is explicitly tested.
+3. **Gate B, any public announcement:** complete the remaining Phase 10 work, finish the Phase 11 release-critical reliability checks, and review documentation/claims.
+4. Phase 13 validation comes before Phase 14, so new features are pulled by users rather than pushed by guesses.
+5. A phase is done when its acceptance criteria have evidence (logs, CI runs, recordings), not merely because the code seemed to work.

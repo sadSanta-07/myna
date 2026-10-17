@@ -2,7 +2,8 @@ import * as pty from "node-pty";
 import { Session } from "./types.js";
 
 export function createLocalSession(shellOverride?: string): Session {
-  const shell = shellOverride || (process.platform === "win32" ? "powershell.exe" : process.env.SHELL || "bash");
+  const isWin = process.platform === "win32";
+  const shell = shellOverride || (isWin ? "powershell.exe" : process.env.SHELL || "bash");
 
   const ptyProcess = pty.spawn(shell, [], {
     name: "xterm-color",

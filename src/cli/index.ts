@@ -7,12 +7,12 @@ import { runUp } from "./commands/up.js";
 import { runJoin } from "./commands/join.js";
 import * as fs from "fs";
 import * as path from "path";
-import * as crypto from "crypto";
 import { startServer } from "../core/server.js";
 import { execSync } from "child_process";
 import { createBwrapSession } from "../core/bwrap.js";
 import { printBanner } from "./ui/banner.js";
 import { pruneAuditLog, getAuditLogPath } from "../core/audit.js";
+import { Session } from "../core/types.js";
 
 printBanner();
 
@@ -21,20 +21,21 @@ const program = new Command();
 program
   .name("myna")
   .description("Peer-to-peer containerized terminal sharing")
-  .version("0.1.0");
+  .version("1.1.1");
 
 program
   .command("up")
   .description("Start a shared native terminal session and generate a join link")
   .option("-s, --sandbox [engine]", "Run in a sandbox (docker or bwrap)")
+  .option("-v, --verbose", "Enable verbose debug output")
   .option("-m, --mount <mode>", "Workspace mount mode for sandbox (ro, rw, none)", "ro")
   .option("--no-replay", "Do not send terminal history to new guests")
   .option("-i, --image <name>", "Specific Docker image to use for sandbox")
   .option("-n, --network <mode>", "Container network mode for sandbox: bridge or none", "bridge")
   .option("--local", "Deprecated alias for native mode", false)
   .action(async (options) => {
-    let session;
-    const upOptions = { noReplay: options.noReplay };
+    let session: Session;
+    const upOptions = { noReplay: options.noReplay, verbose: options.verbose };
 
     if (!options.sandbox) {
       console.log(chalk.green("[myna] Starting native P2P shell session..."));
@@ -131,9 +132,10 @@ program
   .command("join <code>")
   .description("Join a session from the terminal")
   .option("-r, --role <role>", "Requested role (view or control)", "view")
+  .option("-v, --verbose", "Enable verbose debug output")
   .action(async (code, options) => {
     console.log(chalk.blue(`[myna] Joining room ${code} as ${options.role}...`));
-    await runJoin(code, options.role); 
+    await runJoin(code, options.role, { verbose: options.verbose });
   });
 
 program
