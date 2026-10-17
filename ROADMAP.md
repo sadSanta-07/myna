@@ -275,23 +275,32 @@ Resume the paused UI work with the native model in mind.
 
 ## Phase 10: Trust, privacy and abuse resistance
 
-- **Authenticated handshake:** use a PAKE (password-authenticated key exchange, as magic-wormhole does) or a short comparison code so that a malicious signaling server can't sit in the middle. Evaluate current JavaScript libraries before choosing one.
-- **TURN credentials:** the Worker currently hands the same static credentials to every approved guest. Mint short-lived per-session credentials instead (the Metered dashboard documents expiring credentials), and monitor usage.
-- **Signaling abuse:** per-IP limits, connection caps, and logs that don't retain more than needed.
-- **Documents:** `SECURITY.md` with a reporting contact and `docs/THREAT_MODEL.md` rewritten for the native model. Its non-goals include "a control guest can do anything the host can" and "guardrails are accident prevention."
-- **Claims review:** read every sentence in the README and website against what is verified.
+**Status: In progress — do not mark complete until handshake and verification evidence are complete.**
+
+- ⬜ **Authenticated peer handshake:** In the current CLI path, `encryptSignal` and `decryptSignal` are imported but not called. `src/core/crypto.ts` exists, but its AES-GCM helper does not make the signaling handshake authenticated. Terminal DataChannel traffic uses WebRTC DTLS; that alone does not authenticate the signaling-provided peer identity against a malicious signaling server. Add and test a PAKE or comparison-code handshake before claiming protection against signaling-server MITM. The reported earlier encryption experiment was reverted after UX/decryption problems; treat that history as user-reported unless documented in a commit/issue.
+- ✅ **Dynamic TURN retrieval is implemented:** the Worker requests credentials from Metered when configured and falls back to STUN if fetching fails.
+- ⬜ **TURN lifecycle verification:** credential expiry has not been proven from runtime evidence. The existing script only compares credentials between rooms and inspects whether a username looks timestamp-like; verify actual expiry with provider documentation/dashboard and a relay test after expiry.
+- ⬜ **Rate-limit durability:** per-IP request limits are stored in an in-memory Worker `Map`; this is not durable/shared across isolates. Test reset/distribution behavior and decide whether a Durable Object-backed limiter is needed for the desired abuse model.
+- ⬜ **Security documents:** `SECURITY.md` and `docs/THREAT_MODEL.md` are absent from current `main`. Add the reporting process, native-shell threat model, sandbox boundaries and explicit non-goals.
+- ⬜ **Security evidence and claims:** `docs/SECURITY_TESTS.md`, `tests/security/worker-attacks.ts`, and `tests/security/e2e-flow.ts` exist. But `npm test` only runs `tests/session.test.ts`, and CI does not run the security scripts. Run the documented checks against local `wrangler dev`, verify provider/dashboard-dependent assertions, then run the appropriate smoke/integration checks against the deployed Worker and record commit, command, result and evidence. Reconcile README and site claims only with verified outcomes.
+
+**Done when:** handshake authentication is implemented and tested against a signaling MITM scenario; rate-limiting behavior has documented evidence; actual TURN expiry is verified; security documents exist; automated and manual verification results are recorded; public claims match those results.
 
 ---
 
 ## Phase 11: Portability and reliability
 
-- **Shell and OS matrix:** Windows PowerShell and `cmd`, WSL, macOS zsh, Linux bash and fish, and inside tmux. Document which combinations support guardrails.
-- **Windows PTY:** the project uses `useConpty: false` as a workaround for a ConPTY crash under Node 24. Re-test with current `node-pty` and Node, since the older backend is less maintained.
-- **Backpressure:** watch `dc.bufferedAmount` and use `bufferedAmountLowThreshold` so a huge `cat` can't stall the host.
-- **Reconnect:** recover from a network blip with an ICE restart.
-- **Tests and CI:** unit tests for the gate and framing, an in-process integration test, and a smoke test on Linux. Windows runners generally can't run Linux containers, so test the Docker backend on Linux only.
-- **Quiet output:** replace debug logging with `--verbose`.
-- **Per-guest revoke and role changes**, tested with a mixed view and control pair.
+**Status: In progress — basic CI and PTY unit tests exist, but the reliability acceptance matrix is not complete.**
+
+- **Shell and OS matrix:** test Windows PowerShell and `cmd`, WSL, macOS zsh, Linux bash and fish, and tmux; document where guardrails are supported.
+- ⬜ **Windows PTY / ConPTY:** `src/core/session.ts` currently sets `useConpty: false`. Re-test `useConpty: true` with the supported current Node.js and `node-pty` versions on Windows, record the exact versions and regression result, and only change the setting if tests pass. Current CI is Ubuntu/Node 20 and does not prove the Windows/Node 24 ConPTY issue is resolved.
+- ⬜ **Backpressure:** host send code checks `bufferedAmount` and sets a low threshold, but stress-test sustained large output and slow guests; confirm memory is bounded, dropped output is acceptable/documented, and the host never stalls.
+- ⬜ **Reconnect:** current host/guest code handles initial ICE candidates but does not implement an ICE restart recovery flow. Add connection-state handling, credential/candidate renegotiation as required, retries/timeouts, and tests for temporary network loss and recovery.
+- ⬜ **Tests and CI:** existing `tests/session.test.ts` covers basic PTY operations; `.github/workflows/ci.yml` runs `tsc --noEmit` and `npm test`. But `npm test` currently only runs that PTY file. Add unit tests for framing, input-gate behavior and role checks; integration tests for signaling and multi-peer roles; and a Linux smoke test. Wire suitable tests into CI and verify the workflow uses a Node version supported by `package.json` and the native dependencies.
+- ⬜ **Quiet output:** `up.ts` and `join.ts` currently emit routine/status diagnostics, and no `--verbose` option is registered on `myna up`. Define which messages are user-facing versus diagnostic, introduce a tested `--verbose` mode, and keep routine debug output off the shared shell by default.
+- ⬜ **Per-guest revoke and role changes:** host approval can grant `view` or `control`, and revoke currently targets all active guests. Add/test individual revocation and role-change behavior if it is part of the intended UX. Test at least two simultaneous guests (one view, one control), ensuring view input remains blocked, the control guest alone can send input, revoke closes only the intended peer, role changes take effect immediately, and reconnect/replay does not restore old permissions.
+
+**Done when:** the documented OS/shell matrix has evidence; ConPTY behavior is tested on Windows; reconnect recovers from a network interruption; tests for gate/framing/multi-peer behavior run in CI; routine output is quiet by default; and mixed-role per-guest revoke/role-change tests pass.
 
 ---
 
