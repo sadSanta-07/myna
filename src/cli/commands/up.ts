@@ -10,6 +10,7 @@ import * as fs from "fs";
 import * as net from "net";
 import * as os from "os";
 import { printSessionPanel } from "../ui/panel.js";
+import { encryptSignal, decryptSignal } from "../../core/crypto.js";
 
 interface GuardrailRequest {
   cmd: string;
@@ -20,6 +21,8 @@ interface GuardrailRequest {
 }
 let pendingGuardrail: GuardrailRequest | null = null;
 let isFrozen = false;
+let guardrailTimeout: NodeJS.Timeout | null = null;
+const sessionPassword = Math.random().toString(36).substring(2, 6) + "-" + Math.random().toString(36).substring(2, 6);
 
 export async function runUp(session: Session, options: { noReplay?: boolean } = {}) {
   const signalWsUrl = getSignalUrl();
@@ -56,6 +59,16 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         const { cmd } = JSON.parse(data.toString());
         if (isDangerousCommand(cmd)) {
           isFrozen = true;
+          guardrailTimeout = setTimeout(() => {
+            if (pendingGuardrail) {
+              process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
+              try { pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" }); } catch { }
+              try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
+              isFrozen = false;
+              pendingGuardrail = null;
+            }
+          }, 30000);
+
           pendingGuardrail = {
             cmd,
             res: {
@@ -88,15 +101,17 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
   });
 
   setTimeout(() => {
-    if (process.platform === "win32") {
-      const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
-      if (fs.existsSync(hookPath)) {
-        session.write(`. "${hookPath}"\r`);
-      }
-    } else {
-      const hookPath = path.resolve(process.cwd(), "myna-hook.sh");
-      if (fs.existsSync(hookPath)) {
-        session.write(`source "${hookPath}"\n`);
+    if (session.backend === "native") {
+      if (process.platform === "win32") {
+        const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
+        if (fs.existsSync(hookPath)) {
+          session.write(`. "${hookPath}"\r`);
+        }
+      } else {
+        const hookPath = path.resolve(process.cwd(), "myna-hook.sh");
+        if (fs.existsSync(hookPath)) {
+          session.write(`source "${hookPath}"\n`);
+        }
       }
     }
   }, 300);
@@ -138,11 +153,31 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
     channelOpen: boolean;
     remoteDescSet: boolean;
     pendingCandidates: any[];
+    outboundQueue: string[];
   }
 
   const activePeers = new Map<string, PeerSession>();
   let outputHistory = "";
   const MAX_HISTORY = 100000;
+
+  function attemptSend(peer: PeerSession, chunk?: string) {
+    if (chunk) peer.outboundQueue.push(chunk);
+
+    while (peer.outboundQueue.length > 0 && peer.dc.bufferedAmount < 65536) {
+      const data = peer.outboundQueue.shift();
+      if (data) {
+        try {
+          peer.dc.send(data);
+        } catch (err) {
+          peer.outboundQueue.unshift(data);
+          break;
+        }
+      }
+    }
+    if (peer.outboundQueue.length > 500) {
+      peer.outboundQueue.splice(0, peer.outboundQueue.length - 500);
+    }
+  }
 
   interface JoinRequest { peerId: string; requestedRole: string; }
   const joinQueue: JoinRequest[] = [];
@@ -184,6 +219,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
         const cmd = key.toLowerCase();
 
         if (pendingGuardrail) {
+          if (guardrailTimeout) clearTimeout(guardrailTimeout);
           if (cmd === "y") {
             console.log(`\r\n[myna] Allowed: ${pendingGuardrail.cmd}`);
             pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" });
@@ -245,7 +281,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
     for (const peer of activePeers.values()) {
       if (peer.channelOpen && peer.dc.readyState === "open") {
-        try { peer.dc.send(data); } catch { }
+        attemptSend(peer, data);
       }
     }
   });
@@ -315,8 +351,14 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
           channelOpen: false,
           remoteDescSet: false,
           pendingCandidates: [],
+          outboundQueue: [],
         };
         activePeers.set(peerId, peerSession);
+        dc.bufferedAmountLowThreshold = 32768;
+        dc.onbufferedamountlow = () => {
+          const p = activePeers.get(peerId);
+          if (p) attemptSend(p);
+        };
 
         controlDc.onopen = () => {
           const cols = process.stdout.columns;
@@ -362,9 +404,17 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
 
                   if (cmd && isDangerousCommand(cmd)) {
                     isFrozen = true;
+                    guardrailTimeout = setTimeout(() => {
+                      if (pendingGuardrail) {
+                        process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
+                        try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
+                        isFrozen = false;
+                        pendingGuardrail = null;
+                      }
+                    }, 30000);
+
                     process.stdout.write(
                       `\r\n\n⚠️  [myna] GUARDRAIL: Guest attempted dangerous command:\r\n` +
-                      `   > ${cmd}\r\n` +
                       `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
                     );
                     pendingGuardrail = {
@@ -425,6 +475,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean } = 
       if (msg.type === "ice-candidate") {
         const peer = activePeers.get(msg.peerId);
         if (!peer) return;
+
         if (peer.remoteDescSet) {
           await peer.pc.addIceCandidate(msg.candidate);
         } else {

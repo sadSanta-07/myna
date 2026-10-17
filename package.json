@@ -10,8 +10,13 @@
   "files": [
     "dist",
     "public",
-    "README.md"
+    "README.md",
+    "myna-hook.ps1",
+    "myna-hook.sh"
   ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "test": "tsx --test tests/session.test.ts",
     "dev": "tsx src/bin/myna.ts",

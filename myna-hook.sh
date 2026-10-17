@@ -18,7 +18,7 @@ _myna_check_cmd() {
     elif command -v socat >/dev/null 2>&1; then
         response=$(printf "%s" "$json_body" | socat - UNIX-CONNECT:"$MYNA_GATE_PIPE" 2>/dev/null)
     else
-        return 0
+        return 1
     fi
 
     if [ -n "$response" ] && printf '%s' "$response" | grep -q '"allowed":false'; then

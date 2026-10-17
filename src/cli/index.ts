@@ -133,7 +133,7 @@ program
   .option("-r, --role <role>", "Requested role (view or control)", "view")
   .action(async (code, options) => {
     console.log(chalk.blue(`[myna] Joining room ${code} as ${options.role}...`));
-    await runJoin(code, options.role);
+    await runJoin(code, options.role); 
   });
 
 program

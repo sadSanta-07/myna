@@ -59,6 +59,7 @@ export async function startContainer(
     Tty: true,
     OpenStdin: true,
     StdinOnce: false,
+    User: "1000:1000",
     WorkingDir: mountMode !== "none" ? "/workspace" : "/",
     HostConfig: {
       Binds: binds,

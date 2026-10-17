@@ -1,4 +1,3 @@
-# myna-hook.ps1
 Import-Module PSReadLine
 
 # Bind to BOTH the physical Enter key and the network Carriage Return (Ctrl+m)
@@ -17,7 +16,9 @@ Set-PSReadLineKeyHandler -Chord 'Enter', 'Ctrl+m' -ScriptBlock {
     }
 
     if (-not $env:MYNA_GATE_PIPE) {
-        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        [Console]::WriteLine()
+        Write-Host "⚠️  [myna] Guardrail pipe not configured. Failing closed." -ForegroundColor Red
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
         return
     }
     try {
@@ -46,8 +47,10 @@ Set-PSReadLineKeyHandler -Chord 'Enter', 'Ctrl+m' -ScriptBlock {
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
         }
     } catch {
-        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        [Console]::WriteLine()
+        Write-Host "⚠️  [myna] FATAL: Guardrail IPC unreachable. Failing closed to protect host." -ForegroundColor Red
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
     }
 }
 
-Write-Host "[myna] Guardrail hook connected to Secure IPC Socket." -ForegroundColor Cyan
+Write-Host "[myna] Guardrail hook connected to Secure IPC Socket (Fail-Closed Enabled)." -ForegroundColor Cyan

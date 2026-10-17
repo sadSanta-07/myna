@@ -38,7 +38,11 @@ export default {
       return new Response("Too many requests", { status: 429 });
     }
     const url = new URL(request.url);
-    const secret = env.ROOM_SECRET || "myna-dev-fallback-secret-2026";
+
+    const secret = env.ROOM_SECRET;
+    if (!secret) {
+      return new Response("Fatal Error: ROOM_SECRET is not configured. Failing closed.", { status: 500 });
+    }
 
     if (url.pathname === "/health") {
       return new Response("OK", { headers: { "content-type": "text/plain; charset=utf-8" } });

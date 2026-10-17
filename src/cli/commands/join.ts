@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import { createPeerConnection } from "../../core/peer.js";
 import { getSignalUrl } from "../../core/config.js";
 import chalk from "chalk";
+import { encryptSignal, decryptSignal } from "../../core/crypto.js";
 
 export async function runJoin(code: string, requestedRole: string) {
   const signalUrl = getSignalUrl();
@@ -39,7 +40,7 @@ export async function runJoin(code: string, requestedRole: string) {
 
   let pc: RTCPeerConnection | null = null;
   let dc: RTCDataChannel | null = null;
-  
+
   let pendingCandidates: any[] = [];
 
   ws.on("message", async (raw) => {
@@ -104,7 +105,7 @@ export async function runJoin(code: string, requestedRole: string) {
                 dc.send(JSON.stringify({ type: "input", data }));
               }
             });
-          } 
+          }
           else if (event.channel.label === "control") {
             const controlDc = event.channel;
             controlDc.onmessage = (e) => {
@@ -117,7 +118,7 @@ export async function runJoin(code: string, requestedRole: string) {
                     process.stdout.write(`\x1b[33m\r\n[myna] Host resized to ${m.cols}x${m.rows} (Larger than your window!)\x1b[0m\r\n`);
                   }
                 }
-              } catch {}
+              } catch { }
             };
           }
         };
@@ -125,39 +126,32 @@ export async function runJoin(code: string, requestedRole: string) {
 
       if (msg.type === "sdp-offer") {
         if (!pc) return;
-        
+
         await pc.setRemoteDescription(msg.sdp);
-        
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+
         ws.send(JSON.stringify({ type: "sdp-answer", sdp: answer }));
 
         for (const candidate of pendingCandidates) {
-          try {
-            await pc.addIceCandidate(candidate);
-          } catch (err) {
-            console.error("[myna] Error adding buffered ICE candidate:", err);
-          }
+          try { await pc.addIceCandidate(candidate); } catch { }
         }
         pendingCandidates = [];
       }
 
       if (msg.type === "ice-candidate") {
         if (!pc) return;
-        
+
         if (!pc.remoteDescription || !pc.remoteDescription.type) {
           pendingCandidates.push(msg.candidate);
         } else {
-          try {
-            await pc.addIceCandidate(msg.candidate);
-          } catch (err) {
-            console.error("[myna] Error adding ICE candidate:", err);
-          }
+          try { await pc.addIceCandidate(msg.candidate); } catch { }
         }
       }
 
     } catch (err) {
-      console.error("\n[myna] Error parsing signaling message:", (err as Error).message);
+      console.error("\n[myna] Error parsing signaling message or decrypting payload:", (err as Error).message);
+      restoreTerminalAndExit(1);
     }
   });
 }
