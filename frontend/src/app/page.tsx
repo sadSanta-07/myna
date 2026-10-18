@@ -3,6 +3,8 @@ import Hero from "@/components/sections/Hero";
 import ProofSection from "@/components/sections/ProofSection";
 import CTASection from "@/components/sections/CTASection";
 import Footer from "@/components/layout/Footer"
+import ArchitectureSection from "@/components/sections/ArchitectureSection";
+import RoadmapSection from "@/components/sections/RoadmapSection";
 
 export default function Home() {
   return (
@@ -11,6 +13,8 @@ export default function Home() {
       <main>
         <Hero />
         <ProofSection />
+        <ArchitectureSection />
+        <RoadmapSection />
         <CTASection />
         <Footer />
 
