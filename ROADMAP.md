@@ -200,7 +200,7 @@ Key behavior now in place:
 
 ---
 
-## Phase 12: Package, weight and publish
+## Phase 12: Package, weight and publish done except testing linux and windows from diff users
 
 - **Build:** compile with `tsc`, add a `bin` entry with a shebang, set `engines` honestly (the CI run showed `chalk@6` needs Node 22 and `commander@15` needs 22.12), and use a `files` whitelist. Read `npm pack --dry-run` and make sure no `.env` or personal files are included.
 - **Native dependencies:** `node-pty` and `@roamhq/wrtc` are native modules. Now that native mode is the default, `node-pty` is core. Test `npm install -g` on clean Windows, macOS and Linux machines. A failed native install is the most likely first impression, so give it a clear error message.

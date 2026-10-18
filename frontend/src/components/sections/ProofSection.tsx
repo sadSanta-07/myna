@@ -140,23 +140,6 @@ export default function ProofSection() {
                         );
                     })}
                 </div>
-
-                {/* Closing statement */}
-                <div className="mt-8 flex flex-col items-center justify-center gap-2 text-center sm:mt-10">
-                    <p className="text-sm font-medium text-neutral-700">
-                        Open source. Built for developers.
-                    </p>
-
-                    <a
-                        href="https://github.com/sadSanta-07/myna"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-semibold text-neutral-950 underline decoration-neutral-300 underline-offset-4 transition hover:decoration-neutral-950"
-                    >
-                        Explore the implementation
-                        <ArrowUpRight className="size-4" />
-                    </a>
-                </div>
             </div>
         </section>
     );

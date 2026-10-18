@@ -1,4 +1,8 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 /* =========================================================
    MYNA — GLOBAL DESIGN SYSTEM
@@ -10,8 +14,7 @@
 
 @font-face {
   font-family: "Poppins";
-  src: url("../components/fonts/Poppins-Regular.woff2")
-    format("woff2");
+  src: url("../components/fonts/Poppins-Regular.woff2") format("woff2");
   font-display: swap;
   font-style: normal;
   font-weight: 100 900;
@@ -19,8 +22,7 @@
 
 @font-face {
   font-family: "Instrument Serif";
-  src: url("../components/fonts/InstrumentSerif-Regular.ttf")
-    format("truetype");
+  src: url("../components/fonts/InstrumentSerif-Regular.ttf") format("truetype");
   font-display: swap;
   font-style: normal;
   font-weight: 400;
@@ -28,13 +30,11 @@
 
 @font-face {
   font-family: "Special Gothic";
-  src: url("../components/fonts/SpecialGothicExpandedOne-Regular.woff2")
-    format("woff2");
+  src: url("../components/fonts/SpecialGothicExpandedOne-Regular.woff2") format("woff2");
   font-display: swap;
   font-style: normal;
   font-weight: 400;
 }
-
 
 /* ---------------------------------------------------------
    Theme
@@ -93,16 +93,12 @@
   --radius-full: 9999px;
 }
 
-
 /* ---------------------------------------------------------
    Light Theme
    --------------------------------------------------------- */
 
 :root {
   /* Base */
-
-  --background: #ffffff;
-  --foreground: #000000;
 
   /* Surfaces */
 
@@ -111,18 +107,18 @@
 
   /* MYNA primary */
 
-  --primary: #bbf451;
+  --primary: oklch(0.205 0 0);
   --primary-hover: #a0d143;
   --primary-active: #87b337;
 
   /* Supporting text */
 
-  --muted: #6d6878;
-  --muted-foreground: #737373;
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
 
   /* Borders */
 
-  --border: #e5e5e5;
+  --border: oklch(0.922 0 0);
 
   /* Terminal */
 
@@ -166,36 +162,115 @@
   --duration-medium: 300ms;
 
   --ease-standard: cubic-bezier(0.25, 1, 0.5, 1);
-}
 
+  --background: oklch(1 0 0);
+
+  --foreground: oklch(0.145 0 0);
+
+  --card: oklch(1 0 0);
+
+  --card-foreground: oklch(0.145 0 0);
+
+  --popover: oklch(1 0 0);
+
+  --popover-foreground: oklch(0.145 0 0);
+
+  --primary-foreground: oklch(0.985 0 0);
+
+  --secondary: oklch(0.97 0 0);
+
+  --secondary-foreground: oklch(0.205 0 0);
+
+  --accent: oklch(0.97 0 0);
+
+  --accent-foreground: oklch(0.205 0 0);
+
+  --destructive: oklch(0.577 0.245 27.325);
+
+  --input: oklch(0.922 0 0);
+
+  --ring: oklch(0.708 0 0);
+
+  --chart-1: oklch(0.87 0 0);
+
+  --chart-2: oklch(0.556 0 0);
+
+  --chart-3: oklch(0.439 0 0);
+
+  --chart-4: oklch(0.371 0 0);
+
+  --chart-5: oklch(0.269 0 0);
+
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.985 0 0);
+
+  --sidebar-foreground: oklch(0.145 0 0);
+
+  --sidebar-primary: oklch(0.205 0 0);
+
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+
+  --sidebar-accent: oklch(0.97 0 0);
+
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+
+  --sidebar-border: oklch(0.922 0 0);
+
+  --sidebar-ring: oklch(0.708 0 0);
+}
 
 /* ---------------------------------------------------------
    Dark Theme
    --------------------------------------------------------- */
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ffffff;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
 
   --surface: #111111;
   --surface-dark: #000000;
 
-  --primary: #bbf451;
+  --primary: oklch(0.922 0 0);
   --primary-hover: #a0d143;
   --primary-active: #87b337;
 
-  --muted: #8a8a8a;
-  --muted-foreground: #737373;
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
 
-  --border: #262626;
+  --border: oklch(1 0 0 / 10%);
 
   --terminal: #000000;
   --terminal-surface: #111111;
   --terminal-text: #ffffff;
   --terminal-muted: #8a8a8a;
   --terminal-green: #bbf451;
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
-
 
 /* ---------------------------------------------------------
    Base
@@ -211,8 +286,6 @@ html {
 
 body {
   margin: 0;
-  background: var(--background);
-  color: var(--foreground);
 
   font-family: var(--font-poppins);
 
@@ -241,7 +314,6 @@ a {
   color: #000000;
 }
 
-
 /* ---------------------------------------------------------
    Typography helpers
    --------------------------------------------------------- */
@@ -258,7 +330,6 @@ a {
   font-family: var(--font-mono);
 }
 
-
 /* ---------------------------------------------------------
    Scrollbar
    --------------------------------------------------------- */
@@ -271,7 +342,6 @@ a {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
-
 
 /* ---------------------------------------------------------
    MYNA Buttons
@@ -309,7 +379,6 @@ a {
   transform: translateY(0);
 }
 
-
 .myna-button-dark {
   display: inline-flex;
   align-items: center;
@@ -341,7 +410,6 @@ a {
   transform: translateY(0);
 }
 
-
 /* ---------------------------------------------------------
    Cards
    --------------------------------------------------------- */
@@ -362,7 +430,6 @@ a {
 .myna-card:hover {
   box-shadow: var(--shadow-lg);
 }
-
 
 /* ---------------------------------------------------------
    Terminal
@@ -408,12 +475,12 @@ a {
   color: var(--terminal-muted);
 }
 
-
 /* ---------------------------------------------------------
    Glow
    --------------------------------------------------------- */
 
 @keyframes mynaGlow {
+
   0%,
   100% {
     box-shadow:
@@ -432,12 +499,12 @@ a {
   animation: mynaGlow 2.5s ease-in-out infinite;
 }
 
-
 /* ---------------------------------------------------------
    Connection indicator
    --------------------------------------------------------- */
 
 @keyframes mynaPulse {
+
   0%,
   100% {
     opacity: 1;
@@ -452,7 +519,6 @@ a {
   animation: mynaPulse 1.8s ease-in-out infinite;
 }
 
-
 /* ---------------------------------------------------------
    Focus
    --------------------------------------------------------- */
@@ -462,12 +528,12 @@ a {
   outline-offset: 2px;
 }
 
-
 /* ---------------------------------------------------------
    Reduced motion
    --------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -475,5 +541,67 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .myna-discover-button {
+    --obsidian-discover-surface: #090909;
+    --obsidian-discover-text: #ffffff;
+    --obsidian-discover-fill: #b7f34a;
+    --obsidian-discover-active-text: #090909;
+  }
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }

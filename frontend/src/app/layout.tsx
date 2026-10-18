@@ -6,6 +6,10 @@ import {
   instrumentSerif,
   specialGothic,
 } from "@/lib/fonts";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "MYNA — Share your terminal",
@@ -21,7 +25,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${instrumentSerif.variable} ${specialGothic.variable}`}
+      className={cn(poppins.variable, instrumentSerif.variable, specialGothic.variable, "font-sans", geist.variable)}
     >
       <body>{children}</body>
     </html>

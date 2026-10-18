@@ -29,6 +29,7 @@
   "type": "module",
   "dependencies": {
     "@clack/prompts": "^1.7.0",
+    "@paper-design/shaders-react": "^0.0.81",
     "@roamhq/wrtc": "^0.10.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",

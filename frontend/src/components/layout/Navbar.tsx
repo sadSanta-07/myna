@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X, ArrowUpRight } from "lucide-react";
+import { Menu, X, ArrowUpRight, Terminal } from "lucide-react";
 import { PiGithubLogo } from "react-icons/pi";
 import Image from "next/image";
 
@@ -71,16 +71,15 @@ export default function Navbar() {
           aria-label="MYNA home"
           className="group flex shrink-0 items-center gap-2"
         >
-          <div className="relative size-10 shrink-0 overflow-hidden rounded-full bg-black">
-            <Image
+            {/* <Image
               src="/myna.jpg"
               alt="MYNA logo"
               fill
               priority
               sizes="80px"
               className="object-cover"
-            />
-          </div>
+            /> */}
+            <Terminal className="size-4" />
 
           <span className="font-brand text-lg tracking-wide">
             MYNA

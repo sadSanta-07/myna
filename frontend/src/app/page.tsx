@@ -1,6 +1,8 @@
 import Navbar from "@/components/layout/Navbar";
 import Hero from "@/components/sections/Hero";
 import ProofSection from "@/components/sections/ProofSection";
+import CTASection from "@/components/sections/CTASection";
+import Footer from "@/components/layout/Footer"
 
 export default function Home() {
   return (
@@ -9,9 +11,11 @@ export default function Home() {
       <main>
         <Hero />
         <ProofSection />
+        <CTASection />
+        <Footer />
 
 
-        <section
+        {/* <section
           id="architecture"
           className="min-h-screen px-6 py-32"
         >
@@ -37,7 +41,7 @@ export default function Home() {
               Built in phases. Verified at every step.
             </h2>
           </div>
-        </section>
+        </section> */}
       </main>
     </>
   );
