@@ -107,18 +107,18 @@
 
   /* MYNA primary */
 
-  --primary: oklch(0.205 0 0);
+  --primary: #bbf451;
   --primary-hover: #a0d143;
   --primary-active: #87b337;
 
   /* Supporting text */
 
-  --muted: oklch(0.97 0 0);
+  --muted: #6d6878;
   --muted-foreground: oklch(0.556 0 0);
 
   /* Borders */
 
-  --border: oklch(0.922 0 0);
+  --border: #e5e5e5;
 
   /* Terminal */
 
