@@ -51,7 +51,7 @@ export default function ProofSection() {
             <div className="mx-auto max-w-7xl">
                 {/* Section heading */}
                 <div className="mx-auto mb-12 max-w-2xl text-center sm:mb-16">
-                    <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-neutral-600 shadow-sm sm:text-xs">
+                    <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 font-mono text-xs font-medium text-muted-foreground">
                         <span className="size-2 rounded-full bg-lime-400" />
                         What makes MYNA different
                     </span>
@@ -75,7 +75,7 @@ export default function ProofSection() {
                         return (
                             <article
                                 key={card.number}
-                                className="group min-w-0 overflow-hidden rounded-[26px] border border-neutral-200/80 bg-white p-2 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/[0.06]"
+                                className="group min-w-0 overflow-hidden rounded-lg border border-neutral-200/80 bg-white p-2 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
                             >
                                 {/* Video */}
                                 <div
@@ -96,19 +96,19 @@ export default function ProofSection() {
                                     <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/[0.08] to-transparent" />
 
                                     {/* Card number */}
-                                    <span className="absolute left-3 top-3 rounded-full border border-white/60 bg-white/80 px-3 py-1.5 font-mono text-[10px] font-medium tracking-wider text-neutral-800 backdrop-blur-md">
+                                    <span className="absolute left-3 top-3 rounded-md border border-border bg-card px-3 py-1.5 font-mono text-xs font-medium text-foreground">
                                         {card.number} / 03
                                     </span>
 
                                     {/* Icon */}
-                                    <div className="absolute bottom-3 right-3 flex size-10 items-center justify-center rounded-2xl border border-white/60 bg-white/85 shadow-sm backdrop-blur-md">
+                                    <div className="absolute bottom-3 right-3 flex size-10 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
                                         <Icon className={`size-5 ${card.iconColor}`} />
                                     </div>
                                 </div>
 
                                 {/* Card copy */}
                                 <div className="px-4 pb-5 pt-5 sm:px-5 sm:pb-6">
-                                    <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+                                    <p className="font-mono text-xs font-medium text-muted-foreground">
                                         {card.label}
                                     </p>
 

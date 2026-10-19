@@ -25,7 +25,7 @@ import { DiscoverButton } from "@/components/block/discover-button";
 const INSTALL_COMMAND = "npm install -g myna-cli";
 
 const terminalLines = [
-  { kind: "muted", text: "MYNA  /  HOST  /  SESSION" },
+  { kind: "muted", text: "MYNA / Host / Session" },
   { kind: "command", text: "$ myna up --sandbox" },
   { kind: "success", text: "✓ Sandbox started · limits configured" },
   { kind: "success", text: "✓ Room code and share link created" },
@@ -93,13 +93,12 @@ export default function Hero() {
         <div className="mx-auto flex w-full max-w-7xl flex-col items-center text-center">
           {/* Hero copy */}
           <div className="w-full pt-8 sm:pt-[7vh]">
-            <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-black/10 bg-white/65 px-3.5 py-2 shadow-sm backdrop-blur-md">
+            <div className="mb-6 inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 shadow-sm">
               <span className="relative flex size-2 shrink-0">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-lime-500 opacity-40" />
                 <span className="relative inline-flex size-2 rounded-full bg-lime-500" />
               </span>
 
-              <span className="font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-neutral-700 sm:text-xs sm:tracking-[0.16em]">
+              <span className="font-mono text-xs font-medium text-muted-foreground sm:text-sm">
                 Browser-first · peer-to-peer terminal sharing
               </span>
             </div>
@@ -110,7 +109,7 @@ export default function Hero() {
               Their screen.
               <br />
               <span className="font-display font-normal italic tracking-[-0.045em]">
-                Your machine stays yours.
+                Keep the shell on your machine.
               </span>
             </h1>
 
@@ -159,11 +158,11 @@ export default function Hero() {
                     </div>
                   ) : (
                     <div
-                      className="flex h-[60px] w-full min-w-0 items-center overflow-hidden rounded-full border border-neutral-200 bg-white/95 p-1 shadow-sm backdrop-blur-md animate-in fade-in slide-in-from-bottom-1 duration-300"
+                      className="flex h-[60px] w-full min-w-0 items-center overflow-hidden rounded-full border border-border bg-card p-1 shadow-sm animate-in fade-in slide-in-from-bottom-1 duration-300"
                       aria-label="MYNA installation command"
                     >
                       <code className="min-w-0 flex-1 truncate pl-4 text-left font-mono text-[11px] text-neutral-800 sm:text-[13px]">
-                        <span className="mr-2 text-lime-700">$</span>
+                        <span className="mr-2 text-primary">$</span>
                         {INSTALL_COMMAND}
                       </code>
 
@@ -213,22 +212,22 @@ export default function Hero() {
             id="terminal-preview"
             className="mt-10 w-full max-w-6xl text-left sm:mt-12"
           >
-            <div className="overflow-hidden rounded-[22px] border border-white/15 bg-[#090909] shadow-2xl shadow-black/30 ring-1 ring-black/10">
+            <div className="overflow-hidden rounded-xl border border-border bg-terminal shadow-md">
               {/* Window title bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#151515] px-4 py-3 sm:px-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-terminal-surface px-4 py-3 sm:px-5">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="size-2.5 rounded-full bg-[#ff5f57]" />
                   <span className="size-2.5 rounded-full bg-[#febc2e]" />
                   <span className="size-2.5 rounded-full bg-[#28c840]" />
 
                   <span className="ml-2 flex min-w-0 items-center gap-2 truncate font-mono text-[11px] text-neutral-300 sm:text-xs">
-                    <Terminal className="size-3.5 shrink-0 text-lime-300" />
+                    <Terminal className="size-3.5 shrink-0 text-primary" />
                     myna / shared session
                   </span>
                 </div>
 
-                <span className="inline-flex items-center gap-2 rounded-full border border-lime-300/20 bg-lime-300/10 px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-lime-200 sm:text-[10px]">
-                  <StatusDot className="bg-lime-300" />
+                <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-xs font-medium text-primary">
+                  <StatusDot className="bg-primary" />
                   Product walkthrough
                 </span>
               </div>
@@ -236,11 +235,11 @@ export default function Hero() {
               {/* Runtime / transport / access */}
               <div className="grid grid-cols-1 divide-y divide-white/10 border-b border-white/10 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <div className="flex items-center gap-3 px-4 py-3.5 sm:px-5">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-lime-300">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-primary">
                     <Terminal className="size-4" />
                   </div>
                   <div>
-                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">
+                    <p className="font-mono text-xs text-muted-foreground">
                       Host runtime
                     </p>
                     <p className="mt-1 text-xs font-medium text-white">
@@ -254,7 +253,7 @@ export default function Hero() {
                     <Network className="size-4" />
                   </div>
                   <div>
-                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">
+                    <p className="font-mono text-xs text-muted-foreground">
                       Transport
                     </p>
                     <p className="mt-1 text-xs font-medium text-white">
@@ -268,7 +267,7 @@ export default function Hero() {
                     <LockKeyhole className="size-4" />
                   </div>
                   <div>
-                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-neutral-500">
+                    <p className="font-mono text-xs text-muted-foreground">
                       Access policy
                     </p>
                     <p className="mt-1 text-xs font-medium text-white">
@@ -281,10 +280,10 @@ export default function Hero() {
               {/* Terminal + guest UI */}
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.55fr)_minmax(270px,0.8fr)]">
                 <div className="min-w-0 border-b border-white/10 lg:border-b-0 lg:border-r lg:border-white/10">
-                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#0e0e0e] px-4 py-3 sm:px-5">
+                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-terminal-surface px-4 py-3 sm:px-5">
                     <div className="flex items-center gap-2">
-                      <Terminal className="size-3.5 text-lime-300" />
-                      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-neutral-300">
+                      <Terminal className="size-3.5 text-primary" />
+                      <span className="font-mono text-xs text-muted-foreground">
                         Host · shared shell
                       </span>
                     </div>
@@ -293,14 +292,14 @@ export default function Hero() {
                     </span>
                   </div>
 
-                  <div className="min-h-[280px] space-y-2 overflow-x-auto bg-[#080808] px-4 py-5 font-mono text-[10px] leading-5 sm:min-h-[310px] sm:px-5 sm:py-6 sm:text-xs sm:leading-6">
+                  <div className="min-h-[280px] space-y-2 overflow-x-auto bg-terminal px-4 py-5 font-mono text-[10px] leading-5 sm:min-h-[310px] sm:px-5 sm:py-6 sm:text-xs sm:leading-6">
                     {terminalLines.map((line, index) => (
                       <p
                         key={`${line.kind}-${index}`}
                         className={`whitespace-pre ${line.kind === "command"
                             ? "text-white"
                             : line.kind === "success"
-                              ? "text-lime-300"
+                              ? "text-primary"
                               : line.kind === "info"
                                 ? "text-sky-300"
                                 : line.kind === "muted"
@@ -312,34 +311,34 @@ export default function Hero() {
                       </p>
                     ))}
 
-                    <div className="mt-2 flex items-center gap-2 text-lime-300">
+                    <div className="mt-2 flex items-center gap-2 text-primary">
                       <span>host@myna:~$</span>
-                      <span className="inline-block h-3.5 w-1.5 animate-pulse bg-lime-300" />
+                      <span className="inline-block h-3.5 w-1.5 animate-pulse bg-primary" />
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] bg-[#101010] px-4 py-2.5 sm:px-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.07] bg-terminal-surface px-4 py-2.5 sm:px-5">
                     <span className="font-mono text-[9px] text-neutral-600">
                       ILLUSTRATIVE TERMINAL OUTPUT
                     </span>
                     <span className="inline-flex items-center gap-1.5 text-[10px] text-neutral-400">
-                      <ShieldCheck className="size-3.5 text-lime-300" />
+                      <ShieldCheck className="size-3.5 text-primary" />
                       Sandbox available with <code>--sandbox</code>
                     </span>
                   </div>
                 </div>
 
                 {/* Browser guest */}
-                <div className="flex min-w-0 flex-col bg-[#0b0b0b]">
-                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-[#0e0e0e] px-4 py-3 sm:px-5">
+                <div className="flex min-w-0 flex-col bg-terminal">
+                  <div className="flex items-center justify-between border-b border-white/[0.07] bg-terminal-surface px-4 py-3 sm:px-5">
                     <div className="flex items-center gap-2">
                       <Monitor className="size-3.5 text-sky-300" />
-                      <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-neutral-300">
+                      <span className="font-mono text-xs text-muted-foreground">
                         Browser guest
                       </span>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 font-mono text-[9px] text-lime-300">
-                      <StatusDot className="bg-lime-300" />
+                    <span className="inline-flex items-center gap-1.5 font-mono text-[9px] text-primary">
+                      <StatusDot className="bg-primary" />
                       Join flow
                     </span>
                   </div>
@@ -385,8 +384,8 @@ export default function Hero() {
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-lime-300/25 bg-lime-300/[0.07] p-3">
-                          <div className="flex items-center gap-2 text-lime-200">
+                        <div className="rounded-xl border border-lime-300/25 bg-primary/[0.07] p-3">
+                          <div className="flex items-center gap-2 text-primary">
                             <Check className="size-3.5" />
                             <span className="text-xs font-semibold">
                               Control
@@ -424,10 +423,10 @@ export default function Hero() {
 
                       <div className="my-3 flex items-center gap-2">
                         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/20">
-                          <Terminal className="size-3.5 text-lime-300" />
+                          <Terminal className="size-3.5 text-primary" />
                         </div>
                         <div className="relative h-px flex-1 bg-sky-300/40">
-                          <span className="absolute -top-1 right-1 size-2 rounded-full bg-sky-300 shadow-[0_0_10px_rgba(125,211,252,0.8)]" />
+                          <span className="absolute -top-1 right-1 size-2 rounded-full bg-sky-300" />
                         </div>
                         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/20">
                           <Monitor className="size-3.5 text-sky-300" />
@@ -444,19 +443,19 @@ export default function Hero() {
               </div>
 
               {/* Runtime options */}
-              <div className="border-t border-white/10 bg-[#111111]">
+              <div className="border-t border-white/10 bg-terminal-surface">
                 <div className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-neutral-500">
                     No guest install · No account · Host-controlled access
                   </p>
                   <p className="flex items-center gap-1.5 text-[10px] text-neutral-400">
-                    <LockKeyhole className="size-3.5 text-lime-300" />
+                    <LockKeyhole className="size-3.5 text-primary" />
                     Native shell or isolated sandbox
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 gap-px border-t border-white/[0.07] bg-white/[0.06] sm:grid-cols-3">
-                  <div className="bg-[#0d0d0d] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-xs font-semibold text-white">
                       Native mode
                     </p>
@@ -464,7 +463,7 @@ export default function Hero() {
                       For people you trust.
                     </p>
                   </div>
-                  <div className="bg-[#0d0d0d] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-xs font-semibold text-white">
                       Docker sandbox
                     </p>
@@ -472,7 +471,7 @@ export default function Hero() {
                       Containerized sessions with resource limits.
                     </p>
                   </div>
-                  <div className="bg-[#0d0d0d] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-xs font-semibold text-white">
                       Linux bubblewrap
                     </p>
@@ -484,7 +483,7 @@ export default function Hero() {
 
                 {/* Performance figures: validate against PERFORMANCE.md before publishing */}
                 <div className="grid grid-cols-2 gap-px border-t border-white/[0.07] bg-white/[0.06] sm:grid-cols-4">
-                  <div className="bg-[#101010] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-sm font-semibold text-white">
                       18–25 MB
                     </p>
@@ -492,7 +491,7 @@ export default function Hero() {
                       Native CLI idle RAM
                     </p>
                   </div>
-                  <div className="bg-[#101010] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-sm font-semibold text-white">
                       &lt; 0.5%
                     </p>
@@ -500,7 +499,7 @@ export default function Hero() {
                       CPU during streaming
                     </p>
                   </div>
-                  <div className="bg-[#101010] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-sm font-semibold text-white">
                       256 MB
                     </p>
@@ -508,7 +507,7 @@ export default function Hero() {
                       Docker sandbox RAM cap
                     </p>
                   </div>
-                  <div className="bg-[#101010] px-4 py-3 sm:px-5">
+                  <div className="bg-terminal-surface px-4 py-3 sm:px-5">
                     <p className="font-mono text-sm font-semibold text-white">
                       15–50 ms
                     </p>

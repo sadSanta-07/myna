@@ -88,12 +88,12 @@ export const LiquidMetalButton = forwardRef<HTMLButtonElement, LiquidMetalButton
         type={type}
         disabled={disabled}
         className={cn(
-          "group relative inline-flex cursor-pointer border-0 bg-transparent p-0 outline-none transition-transform active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
+          "group relative inline-flex cursor-pointer border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background transition-transform active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50",
           className,
         )}
         {...props}
       >
-        <span className="relative isolate block overflow-hidden rounded-full shadow-[0_12px_32px_-12px_rgba(0,0,0,0.28)]" style={{ padding: borderWidth }}>
+        <span className="relative isolate block overflow-hidden rounded-full shadow-md" style={{ padding: borderWidth }}>
           <LiquidMetal
             colorBack={metalConfig?.colorBack ?? "#888888"}
             colorTint={metalConfig?.colorTint ?? "#ffffff"}
@@ -104,11 +104,11 @@ export const LiquidMetalButton = forwardRef<HTMLButtonElement, LiquidMetalButton
             className="rounded-full"
           />
           <span className={cn(
-            "relative z-10 flex items-center rounded-full bg-white text-neutral-950 transition-colors duration-200 group-hover:bg-neutral-100",
+            "relative z-10 flex items-center rounded-full bg-card text-foreground transition-colors duration-200 group-hover:bg-muted",
             sizeStyles[size],
           )}>
             {icon && (
-              <span className={cn("flex shrink-0 items-center justify-center rounded-full bg-neutral-100 shadow-[inset_0_1px_3px_rgba(0,0,0,0.07)]", iconSizes[size])}>
+              <span className={cn("flex shrink-0 items-center justify-center rounded-full bg-muted", iconSizes[size])}>
                 <span className="text-neutral-800">{icon}</span>
               </span>
             )}

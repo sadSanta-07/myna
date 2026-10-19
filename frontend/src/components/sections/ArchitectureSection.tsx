@@ -68,13 +68,13 @@ export default function ArchitectureSection() {
   return (
     <section
       id="architecture"
-      className="relative overflow-hidden bg-[#f7f7f3] px-4 py-24 sm:px-6 sm:py-32"
+      className="relative overflow-hidden bg-background px-4 py-24 sm:px-6 sm:py-32"
     >
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-600">
-              <span className="size-2 rounded-full bg-[#bbf451]" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3.5 py-2 font-mono text-xs text-muted-foreground">
+              <span className="size-2 rounded-full bg-primary" />
               Under the hood
             </div>
 
@@ -95,7 +95,7 @@ export default function ArchitectureSection() {
         </div>
 
         {/* Architecture diagram */}
-        <div className="relative mt-12 overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0b0b] p-5 text-white shadow-2xl shadow-black/10 sm:mt-16 sm:p-8 lg:p-10">
+        <div className="relative mt-12 overflow-hidden rounded-xl border border-white/10 bg-terminal p-5 text-white shadow-md sm:mt-16 sm:p-8 lg:p-10">
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 opacity-[0.09]"
@@ -108,7 +108,7 @@ export default function ArchitectureSection() {
 
           <div className="relative flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-5">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+              <p className="font-mono text-xs text-muted-foreground">
                 MYNA / CONNECTION FLOW
               </p>
               <p className="mt-2 text-sm text-neutral-300">
@@ -116,8 +116,8 @@ export default function ArchitectureSection() {
               </p>
             </div>
 
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#bbf451]/20 bg-[#bbf451]/10 px-3 py-1.5 font-mono text-[10px] text-[#bbf451]">
-              <span className="size-1.5 rounded-full bg-[#bbf451]" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 font-mono text-[10px] text-primary">
+              <span className="size-1.5 rounded-full bg-primary" />
               SESSION FLOW
             </span>
           </div>
@@ -128,12 +128,12 @@ export default function ArchitectureSection() {
 
               return (
                 <div key={layer.number} className="relative min-w-0">
-                  <article className="h-full rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:border-[#bbf451]/40 hover:bg-white/[0.07] sm:p-5">
+                  <article className="h-full rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition-colors hover:border-primary/40 hover:bg-white/[0.07] sm:p-5">
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[10px] text-neutral-500">
                         {layer.number}
                       </span>
-                      <div className="flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#bbf451]">
+                      <div className="flex size-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-primary">
                         <Icon className="size-4" />
                       </div>
                     </div>
@@ -142,7 +142,7 @@ export default function ArchitectureSection() {
                       {layer.title}
                     </h3>
 
-                    <p className="mt-2 min-h-10 text-[11px] leading-5 text-[#bbf451]/90">
+                    <p className="mt-2 min-h-10 text-xs leading-5 text-primary/90">
                       {layer.subtitle}
                     </p>
 
@@ -154,7 +154,7 @@ export default function ArchitectureSection() {
                   {index < layers.length - 1 && (
                     <div
                       aria-hidden="true"
-                      className="flex h-8 items-center justify-center text-[#bbf451] md:absolute md:-right-3 md:top-1/2 md:z-10 md:h-auto md:-translate-y-1/2"
+                      className="flex h-8 items-center justify-center text-primary md:absolute md:-right-3 md:top-1/2 md:z-10 md:h-auto md:-translate-y-1/2"
                     >
                       <ArrowRight className="hidden size-4 md:block" />
                       <ArrowDown className="size-4 md:hidden" />
@@ -166,7 +166,7 @@ export default function ArchitectureSection() {
           </div>
 
           <div className="relative mt-6 flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-4">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[#bbf451] text-black">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-black">
               <Check className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export default function ArchitectureSection() {
                 The host approves guest permissions before collaboration begins.
               </p>
             </div>
-            <span className="rounded-full border border-white/10 px-3 py-1.5 font-mono text-[9px] uppercase tracking-wider text-neutral-400">
+            <span className="rounded-full border border-white/10 px-3 py-1.5 font-mono text-xs text-muted-foreground">
               Trust boundary
             </span>
           </div>
@@ -194,10 +194,10 @@ export default function ArchitectureSection() {
             return (
               <article
                 key={item.title}
-                className="rounded-[24px] border border-black/[0.07] bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/[0.04] sm:p-7"
+                className="rounded-lg border border-black/[0.07] bg-white p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-black/[0.04] sm:p-7"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex size-11 items-center justify-center rounded-2xl bg-[#bbf451]/35 text-neutral-950">
+                  <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/35 text-neutral-950">
                     <Icon className="size-5" />
                   </div>
                   <span className="font-mono text-xs text-neutral-400">
@@ -205,7 +205,7 @@ export default function ArchitectureSection() {
                   </span>
                 </div>
 
-                <p className="mt-6 font-mono text-[9px] uppercase tracking-[0.16em] text-neutral-500">
+                <p className="mt-6 font-mono text-xs text-muted-foreground">
                   {item.tag}
                 </p>
 
