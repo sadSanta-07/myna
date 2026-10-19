@@ -2,7 +2,10 @@ import * as http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import * as crypto from "crypto";
 
-const ROOM_SECRET = process.env.ROOM_SECRET || "myna-dev-fallback-secret-2026";
+const ROOM_SECRET = process.env.ROOM_SECRET;
+if (!ROOM_SECRET) {
+  throw new Error("ROOM_SECRET must be configured before starting the signaling server.");
+}
 
 function signCode(code: string): string {
   const hmac = crypto.createHmac("sha256", ROOM_SECRET);
