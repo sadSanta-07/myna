@@ -13,7 +13,7 @@ import { printSessionPanel } from "../ui/panel.js";
 interface GuardrailRequest {
   cmd: string;
   res: {
-    writeHead: (statusCode: number, headers?: any) => void;
+    writeHead: (statusCode: number, headers?: Record<string, string>) => void;
     end: (data: string) => void;
   };
 }
@@ -23,7 +23,7 @@ let isFrozen = false;
 let guardrailTimeout: NodeJS.Timeout | null = null;
 
 export async function runUp(session: Session, options: { noReplay?: boolean; verbose?: boolean } = {}) {
-  const logVerbose = (...args: any[]) => {
+  const logVerbose = (...args: unknown[]) => {
     if (options.verbose) {
       console.log(...args);
     }
@@ -39,7 +39,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
     const data = await (res.json() as Promise<{ code: string }>);
     roomCode = data.code;
   } catch (err) {
-    console.error(`\n❌ Error: Cannot provision room from MYNA signaling server at ${signalHttpUrl}`);
+    console.error(`\nError: Cannot provision room from MYNA signaling server at ${signalHttpUrl}`, err);
     console.error("Please check your internet connection or try again later.\n");
     process.exit(1);
   }
@@ -52,7 +52,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
     : path.join(os.tmpdir(), `myna-gate-${sessionId}.sock`);
 
   if (process.platform !== "win32" && fs.existsSync(pipePath)) {
-    try { fs.unlinkSync(pipePath); } catch { }
+    try { fs.unlinkSync(pipePath); } catch (err) { if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[myna] Could not remove stale guard pipe.", { pipePath, err }); }
   }
 
   process.env.MYNA_GATE_PIPE = pipePath;
@@ -65,9 +65,9 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           isFrozen = true;
           guardrailTimeout = setTimeout(() => {
             if (pendingGuardrail) {
-              process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
-              try { pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" }); } catch { }
-              try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
+              process.stdout.write(`\r\n\n[myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
+              try { pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" }); } catch (err) { logVerbose("[myna] Could not set guardrail timeout response headers:", err); }
+              try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch (err) { logVerbose("[myna] Failed to return guardrail timeout denial:", err); }
               isFrozen = false;
               pendingGuardrail = null;
             }
@@ -84,7 +84,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
             }
           };
           process.stdout.write(
-            `\r\n\n⚠️  [myna] GUARDRAIL: Guest is attempting to run:\r\n` +
+            `\r\n\n[myna] GUARDRAIL: Guest is attempting to run:\r\n` +
             `   > ${cmd}\r\n` +
             `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
           );
@@ -100,7 +100,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
   gateServer.listen(pipePath, () => {
     if (process.platform !== "win32") {
-      try { fs.chmodSync(pipePath, 0o600); } catch { }
+      try { fs.chmodSync(pipePath, 0o600); } catch (err) { console.error("[myna] Failed to restrict guard pipe permissions; stopping session startup.", { pipePath, err }); gateServer.close(() => { session.kill(); process.exit(1); }); }
     }
   });
 
@@ -125,10 +125,10 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
       try {
         process.stdin.setRawMode(false);
         process.stdin.pause();
-      } catch { }
+      } catch (err) { logVerbose("[myna] Failed to restore terminal mode:", err); }
     }
-    try { gateServer.close(); } catch { }
-    try { session.kill(); } catch { }
+    try { gateServer.close(); } catch (err) { logVerbose("[myna] Failed to close guard server:", err); }
+    try { session.kill(); } catch (err) { logVerbose("[myna] Failed to stop terminal session:", err); }
     process.exit(code);
   }
 
@@ -140,7 +140,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
   });
 
   ws.on("error", () => {
-    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalWsUrl}`);
+    console.error(`\nError: Cannot connect to the MYNA signaling server at ${signalWsUrl}`);
     console.error("Please check your internet connection or try again later.\n");
     restoreTerminalAndExit(1);
   });
@@ -156,7 +156,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
     role: "view" | "control";
     channelOpen: boolean;
     remoteDescSet: boolean;
-    pendingCandidates: any[];
+    pendingCandidates: RTCIceCandidateInit[];
     outboundQueue: string[];
   }
 
@@ -190,9 +190,9 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
   function cleanupPeer(peerId: string) {
     const peer = activePeers.get(peerId);
     if (!peer) return;
-    try { peer.dc.close(); } catch { }
-    if (peer.controlDc) try { peer.controlDc.close(); } catch { }
-    try { peer.pc.close(); } catch { }
+    try { peer.dc.close(); } catch (err) { logVerbose("[myna] Failed to close peer terminal channel:", err); }
+    if (peer.controlDc) try { peer.controlDc.close(); } catch (err) { logVerbose("[myna] Failed to close peer control channel:", err); }
+    try { peer.pc.close(); } catch (err) { logVerbose("[myna] Failed to close peer connection:", err); }
     activePeers.delete(peerId);
   }
 
@@ -298,11 +298,11 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
     const cols = process.stdout.columns;
     const rows = process.stdout.rows;
     if (cols && rows) {
-      try { session.resize(cols, rows); } catch { }
+      try { session.resize(cols, rows); } catch (err) { logVerbose("[myna] Failed to resize local terminal:", err); }
 
       for (const peer of activePeers.values()) {
         if (peer.controlDc && peer.controlDc.readyState === "open") {
-          try { peer.controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
+          try { peer.controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch (err) { logVerbose("[myna] Failed to send peer terminal resize:", err); }
         }
       }
     }
@@ -366,7 +366,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           const cols = process.stdout.columns;
           const rows = process.stdout.rows;
           if (cols && rows) {
-            try { controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch { }
+            try { controlDc.send(JSON.stringify({ type: "resize", cols, rows })); } catch (err) { logVerbose("[myna] Failed to send initial terminal resize:", err); }
           }
         };
 
@@ -374,11 +374,11 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           logVerbose(`\n[myna] data channel open for ${peerId.slice(0, 4)}`);
           peerSession.channelOpen = true;
           try {
-            dc.send("\r\n\x1b[33m⚠️  [myna] Notice: Your input in this session is being audited and logged by the host.\x1b[0m\r\n");
-          } catch { }
+            dc.send("\r\n\x1b[33m[myna] Notice: Your input in this session is being audited and logged by the host.\x1b[0m\r\n");
+          } catch (err) { logVerbose("[myna] Could not send session audit notice:", err); }
 
           if (outputHistory && !options.noReplay) {
-            try { dc.send(outputHistory); } catch { }
+            try { dc.send(outputHistory); } catch (err) { logVerbose("[myna] Could not replay terminal history to peer:", err); }
           }
         };
 
@@ -408,15 +408,15 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
                     isFrozen = true;
                     guardrailTimeout = setTimeout(() => {
                       if (pendingGuardrail) {
-                        process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
-                        try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
+                        process.stdout.write(`\r\n\n[myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
+                        try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch (err) { logVerbose("[myna] Failed to return guardrail timeout denial:", err); }
                         isFrozen = false;
                         pendingGuardrail = null;
                       }
                     }, 30000);
 
                     process.stdout.write(
-                      `\r\n\n⚠️  [myna] GUARDRAIL: Guest attempted dangerous command:\r\n` +
+                      `\r\n\n[myna] GUARDRAIL: Guest attempted dangerous command:\r\n` +
                       `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
                     );
                     pendingGuardrail = {
@@ -444,7 +444,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
               return session.write(m.data);
             }
-          } catch { }
+          } catch (err) { logVerbose("[myna] Failed to process guest terminal input:", err); }
         };
 
         pc.oniceconnectionstatechange = async () => {

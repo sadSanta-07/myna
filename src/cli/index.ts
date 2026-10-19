@@ -44,14 +44,14 @@ program
       const engine = options.sandbox === true ? "docker" : options.sandbox.toLowerCase();
 
       if (options.mount === "rw") {
-        console.warn(chalk.yellow("⚠️  WARNING: You are running the sandbox in READ-WRITE mode (-m rw)."));
+        console.warn(chalk.yellow("WARNING: You are running the sandbox in READ-WRITE mode (-m rw)."));
         console.warn(chalk.yellow("   A guest could modify or delete files in your local project directory."));
         console.warn(chalk.yellow("   Use -m ro (Read-Only) if you do not want the guest modifying host files.\n"));
       }
 
       if (engine === "bwrap") {
         if (process.platform !== "linux") {
-          console.error(chalk.red("❌ Error: bubblewrap (--sandbox bwrap) is only supported on Linux."));
+          console.error(chalk.red("Error: bubblewrap (--sandbox bwrap) is only supported on Linux."));
           process.exit(1);
         }
         console.log(chalk.green(`[myna] Starting bubblewrap sandbox (mount: ${options.mount}, net: ${options.network})...`));
@@ -63,7 +63,7 @@ program
         try {
           await docker.ping();
         } catch (err) {
-          console.error(chalk.red("\n❌ Error: Cannot connect to the Docker daemon."));
+          console.error(chalk.red("\nError: Cannot connect to the Docker daemon."));
           process.exit(1);
         }
 
@@ -81,7 +81,7 @@ program
                 execSync("npx tsx tests/lock-test.ts verify", { stdio: "inherit" });
                 console.log(chalk.green("[myna] Sandbox verified against lockfile."));
               } catch (err) {
-                console.error(chalk.red("\n❌ Error: Sandbox lockfile verification failed (myna.lock)."));
+                console.error(chalk.red("\nError: Sandbox lockfile verification failed (myna.lock)."));
                 console.error(chalk.yellow("The Dockerfile or build context does not match the pinned lockfile."));
                 process.exit(1);
               }
@@ -92,7 +92,7 @@ program
             try {
               await buildImage(imageTag, process.cwd());
             } catch (err) {
-              console.error(chalk.red(`\n❌ Error: Docker build failed - ${(err as Error).message}`));
+              console.error(chalk.red(`\nError: Docker build failed - ${(err as Error).message}`));
               process.exit(1);
             }
           } else {

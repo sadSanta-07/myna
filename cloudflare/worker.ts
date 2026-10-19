@@ -308,4 +308,5 @@ export class MynaRooms {
       }
     }
     return defaultServers;
-  }}
+   }
+}

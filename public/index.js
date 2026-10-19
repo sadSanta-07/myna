@@ -118,7 +118,10 @@ async function joinRoom() {
                                 if (m.type === "resize" && term) {
                                     term.resize(m.cols, m.rows);
                                 }
-                            } catch (err) { }
+                            } catch (err) {
+                                console.error("Failed to apply remote terminal resize:", err);
+                                log("The host sent an invalid terminal resize update.");
+                            }
                         };
                     }
                 };

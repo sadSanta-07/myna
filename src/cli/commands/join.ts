@@ -2,10 +2,8 @@ import WebSocket from "ws";
 import { createPeerConnection } from "../../core/peer.js";
 import { getSignalUrl } from "../../core/config.js";
 
-type VerboseLog = (...args: unknown[]) => void;
-
 export async function runJoin(roomCode: string, requestedRole: string, options: { verbose?: boolean } = {}) {
-  const logVerbose: VerboseLog = (...args) => {
+  const logVerbose = (...args: unknown[]) => {
     if (options.verbose) {
       console.log(...args);
     }
@@ -19,7 +17,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
       try {
         process.stdin.setRawMode(false);
         process.stdin.pause();
-      } catch { }
+      } catch (err) { logVerbose("[myna] Best-effort terminal/connection operation failed:", err); }
     }
     process.exit(code);
   }
@@ -28,7 +26,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
   process.on("SIGTERM", () => restoreTerminalAndExit(0));
 
   ws.on("error", () => {
-    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalUrl}`);
+    console.error(`\nError: Cannot connect to the MYNA signaling server at ${signalUrl}`);
     console.error("Please check your internet connection or try again later.\n");
     restoreTerminalAndExit(1);
   });
@@ -55,7 +53,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
       if (dc && dc.readyState === "open" && requestedRole === "control") {
         try {
           dc.send(JSON.stringify({ type: "input", data: key }));
-        } catch { }
+        } catch (err) { logVerbose("[myna] Best-effort terminal/connection operation failed:", err); }
       }
     });
   }
@@ -66,7 +64,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
     if (cols && rows && controlDc && controlDc.readyState === "open" && requestedRole === "control") {
       try {
         controlDc.send(JSON.stringify({ type: "resize", cols, rows }));
-      } catch { }
+      } catch (err) { logVerbose("[myna] Best-effort terminal input cleanup failed:", err); }
     }
   });
 
@@ -75,7 +73,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
       const msg = JSON.parse(raw.toString());
 
       if (msg.type === "error") {
-        console.error(`\n❌ Error from server: ${msg.message}`);
+        console.error(`\nError from server: ${msg.message}`);
         restoreTerminalAndExit(1);
       }
 
@@ -84,12 +82,12 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
       }
 
       if (msg.type === "join-denied") {
-        console.log("\n❌ The host denied your request to join.");
+        console.log("\nThe host denied your request to join.");
         restoreTerminalAndExit(0);
       }
 
       if (msg.type === "peer-revoked") {
-        console.log("\n❌ The host revoked your access to the session.");
+        console.log("\nThe host revoked your access to the session.");
         restoreTerminalAndExit(0);
       }
 
@@ -101,7 +99,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
         pc.oniceconnectionstatechange = () => {
           logVerbose(`[myna] Connection state: ${pc?.iceConnectionState}`);
           if (pc?.iceConnectionState === "failed" || pc?.iceConnectionState === "disconnected") {
-            console.error("\n❌ Connection lost to the host. The session has ended.");
+            console.error("\nConnection lost to the host. The session has ended.");
             restoreTerminalAndExit(1);
           }
         };
@@ -130,7 +128,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
               if (cols && rows && requestedRole === "control") {
                 try {
                   controlDc?.send(JSON.stringify({ type: "resize", cols, rows }));
-                } catch { }
+                } catch (err) { logVerbose("[myna] Could not apply incoming terminal resize:", err); }
               }
             };
           }

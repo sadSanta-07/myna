@@ -10,7 +10,7 @@ export async function createBwrapSession(
 ): Promise<Session> {
   const check = spawnSync("bwrap", ["--version"]);
   if (check.error || check.status !== 0) {
-    console.error(chalk.red("\n❌ Error: bubblewrap (bwrap) is not installed on this system."));
+    console.error(chalk.red("\nError: bubblewrap (bwrap) is not installed on this system."));
     console.error(chalk.yellow("Install it via your package manager (e.g., 'sudo apt install bubblewrap' or 'sudo pacman -S bubblewrap').\n"));
     process.exit(1);
   }
