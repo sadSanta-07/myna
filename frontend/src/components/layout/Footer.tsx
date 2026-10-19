@@ -22,7 +22,7 @@ export function Footer() {
     <>
       {/* Closing contribution banner */}
       <section className="bg-neutral-50 px-4 py-14 sm:px-6 md:py-20">
-        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-sm">
+        <div className="mx-auto w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           <div className="relative isolate min-h-[340px] overflow-hidden bg-[url('/cta.jpeg')] bg-cover bg-center px-6 py-8 sm:px-10 sm:py-10 md:min-h-[370px] md:px-12">
             {/* Light treatment keeps copy legible while letting cta.jpeg show through */}
             <div
@@ -36,7 +36,7 @@ export function Footer() {
 
             <div className="flex min-h-[280px] flex-col justify-between gap-9 md:min-h-[290px] md:flex-row md:items-center md:gap-12">
               <div className="max-w-[35rem]">
-                <span className="inline-flex items-center gap-2 rounded-full border border-neutral-900/10 bg-white/75 px-3 py-1.5 text-xs font-semibold text-neutral-700 backdrop-blur-md">
+                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-neutral-700">
                   <span className="size-1.5 rounded-full bg-lime-500" />
                   Built in the open
                 </span>
@@ -51,7 +51,7 @@ export function Footer() {
                   a bug, or help improve the project on GitHub.
                 </p>
 
-                <div className="mt-5 inline-flex max-w-full items-center gap-2 rounded-xl border border-neutral-900/10 bg-white/70 px-3 py-2 font-mono text-xs text-neutral-800 backdrop-blur-md sm:text-sm">
+                <div className="mt-5 inline-flex max-w-full items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 font-mono text-xs text-neutral-800 sm:text-sm">
                   <Terminal className="size-4 shrink-0 text-lime-700" />
                   <code className="truncate">{installCommand}</code>
                 </div>
@@ -62,7 +62,7 @@ export function Footer() {
                   href="https://github.com/sadSanta-07/myna"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group inline-flex h-12 items-center justify-between gap-3 rounded-full bg-neutral-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  className="group inline-flex h-12 items-center justify-between gap-3 rounded-full bg-neutral-950 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 >
                   <span className="inline-flex items-center gap-2 text-white">
                     <GitPullRequest className="size-4 text-white" />
@@ -75,7 +75,7 @@ export function Footer() {
                   href="https://www.npmjs.com/package/myna-cli"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group inline-flex h-12 items-center justify-between gap-3 rounded-full border border-white/80 bg-white/80 px-5 text-sm font-semibold text-neutral-950 backdrop-blur-md transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2"
+                  className="group inline-flex h-12 items-center justify-between gap-3 rounded-full border border-border bg-card px-5 text-sm font-semibold text-neutral-950 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Code2 className="size-4" />

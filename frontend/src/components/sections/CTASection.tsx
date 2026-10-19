@@ -34,7 +34,7 @@ export default function CTASection() {
             </span>
           </div>
           <p className="text-sm font-medium text-neutral-600">
-            Your shell. Your approval. Your choice of isolation.
+            Share terminal access with explicit host approval and a runtime isolation option.
           </p>
         </div>
 
