@@ -4,6 +4,7 @@ export interface Env {
   ROOM_SECRET: string;
   METERED_DOMAIN?: string;
   METERED_API_KEY?: string;
+  CORS_ALLOWED_ORIGINS?: string;
   ASSETS: Fetcher;
 }
 
@@ -55,12 +56,23 @@ export default {
 
       const signedCode = await signCode(rawCode, secret);
 
-      return new Response(JSON.stringify({ code: signedCode }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
+      const origin = request.headers.get("Origin");
+      const allowedOrigins = (env.CORS_ALLOWED_ORIGINS || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      if (origin && !allowedOrigins.includes(origin)) {
+        return new Response("Origin is not allowed", { status: 403 });
+      }
+
+      const headers = new Headers({ "Content-Type": "application/json" });
+      headers.set("Vary", "Origin");
+      if (origin && allowedOrigins.includes(origin)) {
+        headers.set("Access-Control-Allow-Origin", origin);
+      }
+
+      return new Response(JSON.stringify({ code: signedCode }), { headers });
     }
 
     const roomMatch = url.pathname.match(/^\/room\/([a-f0-9]{8})\.([a-f0-9]{16})$/);
@@ -100,7 +112,7 @@ interface SignalMessage {
 }
 
 export class MynaRooms {
-  private roomIceServers: any[] | null = null;
+  private roomIceServers: RTCIceServer[] | null = null;
 
   constructor(
     private readonly ctx: DurableObjectState,
@@ -151,7 +163,7 @@ export class MynaRooms {
       if (!this.roomIceServers) {
         this.fetchDynamicTurn().then(servers => {
           this.roomIceServers = servers;
-        }).catch(() => { });
+        }).catch((err) => { console.error("[myna] Failed to initialize TURN servers; STUN fallback remains active.", err); });
       }
       return;
     }
@@ -237,7 +249,7 @@ export class MynaRooms {
     if (own.role === "host") {
       for (const peer of roomSockets) {
         if (peer === socket) continue;
-        try { peer.send(JSON.stringify({ type: "host-left", code: own.code })); } catch { }
+        try { peer.send(JSON.stringify({ type: "host-left", code: own.code })); } catch (err) { console.warn("[myna] Could not notify peer that host left; the socket may already be closed.", err); }
         peer.serializeAttachment({ role: "closed" } satisfies SocketData);
       }
       return;
@@ -263,14 +275,22 @@ export class MynaRooms {
     try { return socket.deserializeAttachment() as SocketData | undefined; } catch { return undefined; }
   }
 
-  private async fetchDynamicTurn(): Promise<any[]> {
+  private async fetchDynamicTurn(): Promise<RTCIceServer[]> {
     const defaultServers = [{ urls: "stun:stun.metered.live:80" }];
 
     if (this.env.METERED_DOMAIN && this.env.METERED_API_KEY) {
       try {
         const res = await fetch(`https://${this.env.METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${this.env.METERED_API_KEY}`);
         if (res.ok) {
-          return await res.json();
+          const servers: unknown = await res.json();
+          if (Array.isArray(servers) && servers.every((server) => {
+            if (typeof server !== "object" || server === null || !("urls" in server)) return false;
+            const urls = (server as { urls: unknown }).urls;
+            return typeof urls === "string" || (Array.isArray(urls) && urls.every((url) => typeof url === "string"));
+          })) {
+            return servers as RTCIceServer[];
+          }
+          console.error("[myna] Dynamic TURN endpoint returned invalid ICE server data; falling back to STUN.");
         }
       } catch (err) {
         console.error("[myna] Dynamic TURN fetch failed, falling back to STUN.", err);
