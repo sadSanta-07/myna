@@ -28,7 +28,7 @@ export function assertSafeTarget(): void {
   }
 }
 
-export type Msg = { type?: string; [k: string]: any };
+export type Msg = { type?: string; [k: string]: unknown };
 
 export class Client {
   inbox: Msg[] = [];
@@ -42,7 +42,8 @@ export class Client {
       let m: Msg;
       try {
         m = JSON.parse(raw.toString());
-      } catch {
+      } catch (err) {
+        console.warn("[myna test] Ignoring malformed signaling JSON:", err);
         return;
       }
       this.inbox.push(m);
@@ -59,7 +60,7 @@ export class Client {
       this.closed = true;
       this.closeCode = code;
     });
-    ws.on("error", () => {});
+    ws.on("error", (err) => { console.warn("[myna test] Signaling socket error:", err.message); });
   }
 
   /** Open a socket. Returns the client, or the HTTP status if the upgrade was refused. */
@@ -121,7 +122,9 @@ export class Client {
   close(): void {
     try {
       this.ws.close();
-    } catch {}
+    } catch (err) {
+      console.warn("[myna test] Failed to close signaling socket during cleanup:", err);
+    }
   }
 }
 
@@ -131,7 +134,8 @@ export async function newRoom(): Promise<{ status: number; code?: string }> {
   let res: Response;
   try {
     res = await fetch(`${TARGET.http}/new`, { method: "POST" });
-  } catch {
+  } catch (err) {
+    console.warn("[myna test] Could not create test room:", err);
     return { status: 0 };
   }
   const text = await res.text();
@@ -139,8 +143,9 @@ export async function newRoom(): Promise<{ status: number; code?: string }> {
   try {
     const j = JSON.parse(text);
     code = j.code ?? j.roomCode ?? j.room;
-  } catch {
+  } catch (err) {
     if (/^[A-Za-z0-9_-]{4,64}$/.test(text.trim())) code = text.trim();
+    else console.warn("[myna test] Room endpoint returned an invalid payload:", err);
   }
   return { status: res.status, code: res.ok ? code : undefined };
 }
