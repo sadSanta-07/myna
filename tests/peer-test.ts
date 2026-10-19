@@ -15,8 +15,8 @@ const pc = createPeerConnection("peer");
 function leave(reason: string) {
   if (process.stdin.isTTY) process.stdin.setRawMode(false);
   console.error(`\n[peer] ${reason}`);
-  try { pc.close(); } catch { }
-  try { ws.close(); } catch { }
+  try { pc.close(); } catch (err) { console.warn("[peer-test] Could not close peer connection during cleanup:", err); }
+  try { ws.close(); } catch (err) { console.warn("[peer-test] Could not close signaling socket during cleanup:", err); }
   process.exit(0);
 }
 
@@ -53,7 +53,7 @@ pc.ondatachannel = (event) => {
 };
 
 let remoteDescSet = false;
-const pendingCandidates: any[] = [];
+const pendingCandidates: RTCIceCandidateInit[] = [];
 
 pc.onicecandidate = (event) => {
   if (event.candidate) {

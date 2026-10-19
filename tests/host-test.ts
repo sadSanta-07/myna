@@ -11,7 +11,7 @@ interface PeerSession {
   role: "view" | "control";
   channelOpen: boolean;
   remoteDescSet: boolean;
-  pendingCandidates: any[];
+  pendingCandidates: RTCIceCandidateInit[];
 }
 
 const activePeers = new Map<string, PeerSession>();
@@ -69,8 +69,8 @@ function processNextJoinRequest() {
 function cleanupPeer(peerId: string) {
   const peer = activePeers.get(peerId);
   if (!peer) return;
-  try { peer.dc.close(); } catch { }
-  try { peer.pc.close(); } catch { }
+  try { peer.dc.close(); } catch (err) { console.warn("[host-test] Could not close peer data channel during cleanup:", err); }
+  try { peer.pc.close(); } catch (err) { console.warn("[host-test] Could not close peer connection during cleanup:", err); }
   activePeers.delete(peerId);
 }
 
@@ -158,7 +158,8 @@ ws.on("message", async (raw) => {
         if (m.type === "input" && typeof m.data === "string") {
           return session.write(m.data);
         }
-      } catch {
+      } catch (err) {
+        console.warn("[host-test] Ignoring invalid terminal control message:", err);
       }
     };
 

@@ -44,28 +44,28 @@ async function main() {
   hostPc.createDataChannel("control");
 
   const hostGotInput = new Promise<string>((resolve) => {
-    terminal.onmessage = (e: any) => {
+    terminal.onmessage = (e: MessageEvent) => {
       try {
         const m = JSON.parse(e.data.toString());
         if (m.type === "input") resolve(m.data);
-      } catch {}
+      } catch (err) { console.warn("[myna e2e] Ignoring non-JSON terminal message:", err); }
     };
   });
   const guestGotOutput = new Promise<string>((resolve) => {
-    guestPc.ondatachannel = (e: any) => {
+    guestPc.ondatachannel = (e: RTCDataChannelEvent) => {
       const ch = e.channel;
       if (ch.label !== "terminal") return;
-      ch.onmessage = (m: any) => resolve(m.data.toString());
+      ch.onmessage = (m: MessageEvent) => resolve(String(m.data));
       ch.onopen = () => ch.send(JSON.stringify({ type: "input", data: "echo e2e\n" }));
     };
   });
   terminal.onopen = () => terminal.send("hello-from-host");
 
-  hostPc.onicecandidate = (e: any) => e.candidate && host.send({ type: "ice-candidate", peerId, candidate: e.candidate });
-  guestPc.onicecandidate = (e: any) => e.candidate && guest.send({ type: "ice-candidate", candidate: e.candidate });
+  hostPc.onicecandidate = (e: RTCPeerConnectionIceEvent) => e.candidate && host.send({ type: "ice-candidate", peerId, candidate: e.candidate });
+  guestPc.onicecandidate = (e: RTCPeerConnectionIceEvent) => e.candidate && guest.send({ type: "ice-candidate", candidate: e.candidate });
 
   let guestRemoteSet = false;
-  const guestPending: any[] = [];
+  const guestPending: RTCIceCandidateInit[] = [];
   guest.on(async (m: Msg) => {
     try {
       if (m.type === "sdp-offer") {
@@ -79,13 +79,13 @@ async function main() {
         if (guestRemoteSet) await guestPc.addIceCandidate(m.candidate);
         else guestPending.push(m.candidate);
       }
-    } catch (e: any) {
-      fail(`guest handshake error: ${e.message}`);
+    } catch (err: unknown) {
+      fail(`guest handshake error: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
   let hostRemoteSet = false;
-  const hostPending: any[] = [];
+  const hostPending: RTCIceCandidateInit[] = [];
   host.on(async (m: Msg) => {
     try {
       if (m.type === "sdp-answer" && m.peerId === peerId) {
@@ -96,8 +96,8 @@ async function main() {
         if (hostRemoteSet) await hostPc.addIceCandidate(m.candidate);
         else hostPending.push(m.candidate);
       }
-    } catch (e: any) {
-      fail(`host handshake error: ${e.message}`);
+    } catch (err: unknown) {
+      fail(`host handshake error: ${err instanceof Error ? err.message : String(err)}`);
     }
   });
 
