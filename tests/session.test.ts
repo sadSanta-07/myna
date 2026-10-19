@@ -29,13 +29,16 @@ test("resize does not throw on a live session", () => {
     session.kill();
 });
 
-test("kill terminates the process and fires onExit", async () => {
+test("kill terminates the process and fires onExit", async (t) => {
     const session = createLocalSession();
+    t.after(() => session.kill());
+
     const exited = new Promise<void>((resolve) => {
         session.onExit(() => resolve());
     });
+
     session.kill();
-    await exited;
+    await assert.doesNotReject(exited, { timeout: 5000 });
 });
 
 // Forcefully kill the process to release node-pty's background pipes
