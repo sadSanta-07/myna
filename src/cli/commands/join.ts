@@ -2,8 +2,10 @@ import WebSocket from "ws";
 import { createPeerConnection } from "../../core/peer.js";
 import { getSignalUrl } from "../../core/config.js";
 
+type VerboseLog = (...args: unknown[]) => void;
+
 export async function runJoin(roomCode: string, requestedRole: string, options: { verbose?: boolean } = {}) {
-  const logVerbose = (...args: any[]) => {
+  const logVerbose: VerboseLog = (...args) => {
     if (options.verbose) {
       console.log(...args);
     }
@@ -39,7 +41,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
   let pc: RTCPeerConnection | null = null;
   let dc: RTCDataChannel | null = null;
   let controlDc: RTCDataChannel | null = null;
-  let pendingCandidates: any[] = [];
+  let pendingCandidates: RTCIceCandidateInit[] = [];
 
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);
