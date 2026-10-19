@@ -70,7 +70,7 @@ export async function startContainer(
       PidsLimit: 100,
       SecurityOpt: ["no-new-privileges:true"],
       CapDrop: ["ALL"],
-    } as any
+    } as Docker.HostConfig
   });
 
   await container.start();
@@ -79,7 +79,7 @@ export async function startContainer(
 
 export async function attachToContainer(container: Docker.Container): Promise<NodeJS.ReadWriteStream> {
   return new Promise((resolve, reject) => {
-    (container.modem as any).dial({
+    container.modem.dial({
       path: `/containers/${container.id}/attach?stream=1&stdin=1&stdout=1&stderr=1`,
       method: "POST",
       isStream: true,
@@ -92,7 +92,7 @@ export async function attachToContainer(container: Docker.Container): Promise<No
         404: "no such container",
         500: "server error"
       }
-    }, (err: any, stream: NodeJS.ReadWriteStream) => {
+    }, (err: Error | null, stream: NodeJS.ReadWriteStream) => {
       if (err) return reject(err);
       resolve(stream);
     });
