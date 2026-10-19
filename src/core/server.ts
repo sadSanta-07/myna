@@ -24,13 +24,22 @@ interface SocketData {
 
 export function startServer(port = 8080) {
   const rooms = new Map<string, Set<SocketData>>();
+  const allowedOrigins = new Set((process.env.CORS_ALLOWED_ORIGINS || `http://localhost:${port}`).split(",").map(origin => origin.trim()).filter(Boolean));
 
   const server = http.createServer((req, res) => {
-    // CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // CORS headers: reflect only explicitly allowed origins.
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+    }
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
     if (req.method === "OPTIONS") {
+      if (origin && !allowedOrigins.has(origin)) {
+        res.writeHead(403);
+        return res.end();
+      }
       res.writeHead(204);
       return res.end();
     }
