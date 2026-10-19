@@ -10,6 +10,14 @@
     --muted: #858a80;
     --lime: #bbf451;
     --lime-hover: #c8ff63;
+    --terminal-muted: #b9bdb5;
+    --terminal-subtle: #858a80;
+    --terminal-dim: #62675f;
+    --terminal-deep: #0b0d0b;
+    --terminal-border: #30342e;
+    --status-warning: #e8b44c;
+    --status-error: #f0786d;
+    --status-success: #bbf451;
     --mono: "DM Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
     --sans: "Manrope", Inter, system-ui, sans-serif;
 }
@@ -27,9 +35,7 @@ body {
     min-height: 100vh;
     margin: 0;
     color: var(--text);
-    background:
-        radial-gradient(ellipse at 50% -25%, rgba(187, 244, 81, .12), transparent 48%),
-        linear-gradient(180deg, #0b0c0b 0%, var(--bg) 72%);
+    background: linear-gradient(180deg, #0b0c0b 0%, var(--bg) 72%);
     font-family: var(--sans);
     -webkit-font-smoothing: antialiased;
 }
@@ -107,7 +113,7 @@ select:focus-visible {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    color: #b9bdb5;
+    color: var(--terminal-muted);
     font: 11px var(--mono);
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -119,7 +125,7 @@ select:focus-visible {
     flex: 0 0 auto;
     border-radius: 50%;
     background: var(--lime);
-    box-shadow: 0 0 12px rgba(187, 244, 81, .45);
+    box-shadow: none;
 }
 
 .intro {
@@ -213,7 +219,7 @@ h1 .soft {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: #b9bdb5;
+    color: var(--terminal-muted);
     font: 11px var(--mono);
     letter-spacing: .06em;
     text-transform: uppercase;
@@ -267,11 +273,11 @@ h1 .soft {
 .field-control {
     width: 100%;
     height: 50px;
-    border: 1px solid #30342e;
+    border: 1px solid var(--terminal-border);
     border-radius: 12px;
     padding: 0 15px;
     color: var(--text);
-    background: #0b0d0b;
+    background: var(--terminal-deep);
     transition:
         border-color .18s ease,
         background .18s ease,
@@ -279,7 +285,7 @@ h1 .soft {
 }
 
 .field-control::placeholder {
-    color: #62675f;
+    color: var(--terminal-dim);
 }
 
 .field-control:hover {
@@ -329,7 +335,7 @@ select.field-control {
 .join-button:hover {
     transform: translateY(-1px);
     background: var(--lime-hover);
-    box-shadow: 0 8px 26px rgba(187, 244, 81, .12);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .12);
 }
 
 .join-button:active {
@@ -367,12 +373,12 @@ select.field-control {
 #status[data-state="connecting"]::before,
 #status[data-state="waiting"]::before {
     background: #e8b44c;
-    box-shadow: 0 0 10px rgba(232, 180, 76, .35);
+    box-shadow: none;
 }
 
 #status[data-state="connected"]::before {
     background: var(--lime);
-    box-shadow: 0 0 10px rgba(187, 244, 81, .4);
+    box-shadow: none;
 }
 
 #status[data-state="error"]::before {
