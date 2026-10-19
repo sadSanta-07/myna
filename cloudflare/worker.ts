@@ -276,26 +276,36 @@ export class MynaRooms {
   }
 
   private async fetchDynamicTurn(): Promise<RTCIceServer[]> {
-    const defaultServers = [{ urls: "stun:stun.metered.live:80" }];
+    const defaultServers: RTCIceServer[] = [{ urls: "stun:stun.metered.live:80" }];
 
     if (this.env.METERED_DOMAIN && this.env.METERED_API_KEY) {
       try {
         const res = await fetch(`https://${this.env.METERED_DOMAIN}/api/v1/turn/credentials?apiKey=${this.env.METERED_API_KEY}`);
         if (res.ok) {
           const servers: unknown = await res.json();
-          if (Array.isArray(servers) && servers.every((server) => {
-            if (typeof server !== "object" || server === null || !("urls" in server)) return false;
-            const urls = (server as { urls: unknown }).urls;
-            return typeof urls === "string" || (Array.isArray(urls) && urls.every((url) => typeof url === "string"));
-          })) {
-            return servers as RTCIceServer[];
+          if (
+            Array.isArray(servers) &&
+            servers.every(
+              (server): server is RTCIceServer =>
+                typeof server === "object" &&
+                server !== null &&
+                "urls" in server &&
+                (typeof server.urls === "string" ||
+                  (Array.isArray(server.urls) &&
+                    server.urls.every((url) => typeof url === "string"))),
+            )
+          ) {
+            return servers;
           }
-          console.error("[myna] Dynamic TURN endpoint returned invalid ICE server data; falling back to STUN.");
+          console.error("[myna] Dynamic TURN service returned an invalid ICE server response; falling back to STUN.");
+        } else {
+          console.error("[myna] Dynamic TURN service returned an unsuccessful response; falling back to STUN.", {
+            status: res.status,
+          });
         }
       } catch (err) {
         console.error("[myna] Dynamic TURN fetch failed, falling back to STUN.", err);
       }
     }
     return defaultServers;
-  }
-}
+  }}
