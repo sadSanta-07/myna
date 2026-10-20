@@ -9,8 +9,10 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
     }
   };
 
+
   const signalUrl = getSignalUrl();
-  const ws = new WebSocket(signalUrl);
+  const ws = new WebSocket(`${signalUrl}/room/${roomCode}`);
+
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
@@ -25,9 +27,9 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
   process.on("SIGINT", () => restoreTerminalAndExit(0));
   process.on("SIGTERM", () => restoreTerminalAndExit(0));
 
-  ws.on("error", () => {
-    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalUrl}`);
-    console.error("Please check your internet connection or try again later.\n");
+  ws.on("error", (err) => {
+    console.error(`\n❌ Signaling connection failed: ${err.message}`);
+    console.error(`URL: ${signalUrl}/room/${roomCode}\n`);
     restoreTerminalAndExit(1);
   });
 
@@ -86,12 +88,12 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
         restoreTerminalAndExit(0);
       }
 
-      if (msg.type === "peer-revoked") {
+      if (msg.type === "revoked") {
         console.log("\n❌ The host revoked your access to the session.");
         restoreTerminalAndExit(0);
       }
 
-      if (msg.type === "join-approved") {
+      if (msg.type === "joined") {
         logVerbose(`[myna] Host approved join request as ${msg.role}. Establishing P2P connection...`);
         requestedRole = msg.role;
         pc = createPeerConnection("guest", msg.iceServers);
@@ -143,7 +145,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
 
       if (msg.type === "sdp-offer") {
         if (!pc) return;
-        
+
         await pc.setRemoteDescription(msg.sdp);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -161,7 +163,7 @@ export async function runJoin(roomCode: string, requestedRole: string, options: 
 
       if (msg.type === "ice-candidate") {
         if (!pc) return;
-        
+
         if (!pc.remoteDescription || !pc.remoteDescription.type) {
           pendingCandidates.push(msg.candidate);
         } else {

@@ -14,7 +14,15 @@ import { printBanner } from "./ui/banner.js";
 import { pruneAuditLog, getAuditLogPath } from "../core/audit.js";
 import { Session } from "../core/types.js";
 
-printBanner();
+const showBanner = !process.argv
+  .slice(2)
+  .some((arg) =>
+    ["--help", "-h", "--version", "-V"].includes(arg),
+  );
+
+if (showBanner) {
+  printBanner();
+}
 
 const program = new Command();
 

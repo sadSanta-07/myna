@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X, ArrowUpRight, Terminal } from "lucide-react";
 import { PiGithubLogo } from "react-icons/pi";
-import Image from "next/image";
 
 
 const NAV_LINKS = [

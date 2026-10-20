@@ -8,8 +8,12 @@ import { Session } from "../../core/types.js";
 import { getSignalUrl, getShareDomain } from "../../core/config.js";
 import { logGuestInput } from "../../core/audit.js";
 import { isDangerousCommand } from "../../core/guardrail.js";
-import { printSessionPanel } from "../ui/panel.js";
-
+import {
+  printSessionPanel,
+  printJoinRequest,
+  printGuardrailPrompt,
+  printNotice,
+} from "../ui/panel.js";
 interface GuardrailRequest {
   cmd: string;
   res: {
@@ -65,7 +69,7 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           isFrozen = true;
           guardrailTimeout = setTimeout(() => {
             if (pendingGuardrail) {
-              process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
+              printGuardrailPrompt(cmd);
               try { pendingGuardrail.res.writeHead(200, { "Content-Type": "application/json" }); } catch { }
               try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
               isFrozen = false;
@@ -100,25 +104,37 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
   gateServer.listen(pipePath, () => {
     if (process.platform !== "win32") {
-      try { fs.chmodSync(pipePath, 0o600); } catch { }
-    }
-  });
-
-  setTimeout(() => {
-    if (session.backend === "native") {
-      if (process.platform === "win32") {
-        const hookPath = path.resolve(process.cwd(), "myna-hook.ps1");
-        if (fs.existsSync(hookPath)) {
-          session.write(`. "${hookPath}"\r`);
-        }
-      } else {
-        const hookPath = path.resolve(process.cwd(), "myna-hook.sh");
-        if (fs.existsSync(hookPath)) {
-          session.write(`source "${hookPath}"\n`);
-        }
+      try {
+        fs.chmodSync(pipePath, 0o600);
+      } catch {
+        // Preserve the existing socket permissions if chmod is unavailable.
       }
     }
-  }, 300);
+
+    if (session.backend !== "native") return;
+
+    const hookPath = process.platform === "win32"
+      ? path.resolve(process.cwd(), "myna-hook.ps1")
+      : path.resolve(process.cwd(), "myna-hook.sh");
+
+    if (!fs.existsSync(hookPath)) return;
+
+    if (process.platform === "win32") {
+      const escapedPipe = pipePath.replace(/'/g, "''");
+      const escapedHook = hookPath.replace(/'/g, "''");
+
+      session.write(
+        `$env:MYNA_GATE_PIPE = '${escapedPipe}'; . '${escapedHook}'\r`,
+      );
+    } else {
+      const escapedPipe = pipePath.replace(/'/g, "'\\''");
+      const escapedHook = hookPath.replace(/'/g, "'\\''");
+
+      session.write(
+        `export MYNA_GATE_PIPE='${escapedPipe}'; source '${escapedHook}'\n`,
+      );
+    }
+  });
 
   function restoreTerminalAndExit(code = 0) {
     if (process.stdin.isTTY) {
@@ -139,9 +155,11 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
     restoreTerminalAndExit(1);
   });
 
-  ws.on("error", () => {
-    console.error(`\n❌ Error: Cannot connect to the MYNA signaling server at ${signalWsUrl}`);
-    console.error("Please check your internet connection or try again later.\n");
+  ws.on("error", (err: Error) => {
+    console.error(
+      `\n[MYNA] Signaling connection failed: ${err.message}`,
+    );
+    console.error(`Endpoint: ${signalWsUrl}`);
     restoreTerminalAndExit(1);
   });
 
@@ -161,8 +179,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
   }
 
   const activePeers = new Map<string, PeerSession>();
-  let outputHistory = "";
-  const MAX_HISTORY = 20000;
 
   function attemptSend(peer: PeerSession, chunk?: string) {
     if (chunk) peer.outboundQueue.push(chunk);
@@ -198,10 +214,12 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
   function processNextJoinRequest() {
     if (currentRequest || joinQueue.length === 0) return;
+
     currentRequest = joinQueue.shift()!;
-    process.stdout.write(
-      `\n[myna] Peer (${currentRequest.peerId.slice(0, 4)}) wants to join as ${currentRequest.requestedRole}.\n` +
-      `       Press [Ctrl+] then C] Control | [Ctrl+] then V] View | [Ctrl+] then D] Deny: `
+
+    printJoinRequest(
+      currentRequest.peerId,
+      currentRequest.requestedRole,
     );
   }
 
@@ -244,10 +262,16 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           if (cmd === "c" || cmd === "v") {
             const role = cmd === "c" ? "control" : "view";
             ws.send(JSON.stringify({ type: "approve-peer", peerId, role }));
-            console.log(`\n[myna] Approved ${peerId.slice(0, 4)} as ${role}`);
+            printNotice(
+              `Approved peer ${peerId.slice(0, 4)} with ${role} access.`,
+              "success",
+            );
           } else if (cmd === "d") {
             ws.send(JSON.stringify({ type: "deny-peer", peerId }));
-            console.log(`\n[myna] Denied ${peerId.slice(0, 4)}`);
+            printNotice(
+              `Denied peer ${peerId.slice(0, 4)}.`,
+              "warning",
+            );
           }
           currentRequest = null;
           processNextJoinRequest();
@@ -276,10 +300,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
   session.onData((data: string) => {
     process.stdout.write(data);
-
-    if (outputHistory.length < MAX_HISTORY) {
-      outputHistory += data;
-    }
     for (const peer of activePeers.values()) {
       if (peer.channelOpen && peer.dc.readyState === "open") {
         attemptSend(peer, data);
@@ -329,7 +349,10 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
       if (msg.type === "join-request-cancelled") {
         if (currentRequest && currentRequest.peerId === msg.peerId) {
-          console.log(`\n[myna] peer ${msg.peerId.slice(0, 4)} disconnected. Cancelled prompt.`);
+          printNotice(
+            `Peer ${msg.peerId.slice(0, 4)} disconnected. Join request cancelled.`,
+            "warning",
+          );
           currentRequest = null;
           processNextJoinRequest();
         } else {
@@ -376,10 +399,6 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           try {
             dc.send("\r\n\x1b[33m⚠️  [myna] Notice: Your input in this session is being audited and logged by the host.\x1b[0m\r\n");
           } catch { }
-
-          if (outputHistory && !options.noReplay) {
-            try { dc.send(outputHistory); } catch { }
-          }
         };
 
         let guestLineBuffer = "";
@@ -396,8 +415,13 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
               }
               return;
             }
+
             if (m.type === "input" && typeof m.data === "string") {
               logGuestInput(peerId, m.data);
+
+              if (pendingGuardrail || isFrozen) {
+                return;
+              }
 
               for (const char of m.data) {
                 if (char === "\r" || char === "\n") {
@@ -406,33 +430,38 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
 
                   if (cmd && isDangerousCommand(cmd)) {
                     isFrozen = true;
+
                     guardrailTimeout = setTimeout(() => {
                       if (pendingGuardrail) {
-                        process.stdout.write(`\r\n\n⚠️  [myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n`);
-                        try { pendingGuardrail.res.end(JSON.stringify({ allowed: false })); } catch { }
+                        process.stdout.write(
+                          "\r\n[myna] Guardrail timeout reached (30s). Auto-denying to protect host.\r\n"
+                        );
+                        try {
+                          pendingGuardrail.res.end(JSON.stringify({ allowed: false }));
+                        } catch { }
                         isFrozen = false;
                         pendingGuardrail = null;
                       }
                     }, 30000);
 
-                    process.stdout.write(
-                      `\r\n\n⚠️  [myna] GUARDRAIL: Guest attempted dangerous command:\r\n` +
-                      `   Press [Ctrl+] then Y] to Allow | [Ctrl+] then N] to Block: `
-                    );
+                    printGuardrailPrompt(cmd);
+
                     pendingGuardrail = {
                       cmd,
                       res: {
                         writeHead: () => { },
                         end: (responseStr: string) => {
                           const allowed = JSON.parse(responseStr).allowed;
+
                           if (allowed) {
-                            session.write(m.data);
+                            session.write(`${cmd}\r`);
                           } else {
-                            console.log(`\r\n[myna] Command blocked.`);
+                            process.stdout.write("\r\n[myna] Command blocked.\r\n");
                           }
-                        }
-                      }
+                        },
+                      },
                     };
+
                     return;
                   }
                 } else if (char === "\b" || char === "\x7f") {
@@ -442,8 +471,10 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
                 }
               }
 
-              return session.write(m.data);
+              session.write(m.data);
+              return;
             }
+
           } catch { }
         };
 
