@@ -21,7 +21,7 @@ const showBanner = !process.argv
   );
 
 if (showBanner) {
-  printBanner();
+  await printBanner();
 }
 
 const program = new Command();

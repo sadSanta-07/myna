@@ -14,6 +14,11 @@ import {
   printGuardrailPrompt,
   printNotice,
 } from "../ui/panel.js";
+import { printMynaHelp } from "../ui/help.js";
+import { printStats } from "../ui/stats.js";
+import { printDiagnostics } from "../ui/diagnostics.js";
+import { printStatus, printPeers } from "../ui/status.js";
+
 interface GuardrailRequest {
   cmd: string;
   res: {
@@ -49,6 +54,8 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
   }
 
   const ws = new WebSocket(`${signalWsUrl}/room/${roomCode}`);
+  const sessionStartedAt = Date.now();
+
 
   const sessionId = Math.random().toString(36).substring(2, 10);
   const pipePath = process.platform === "win32"
@@ -275,6 +282,44 @@ export async function runUp(session: Session, options: { noReplay?: boolean; ver
           }
           currentRequest = null;
           processNextJoinRequest();
+          return;
+        }
+
+        if (cmd === "h") {
+          printMynaHelp();
+          return;
+        }
+
+        if (cmd === "s") {
+          printStatus({
+            roomCode,
+            backend: session.backend,
+            peerIds: [...activePeers.keys()],
+            startedAt: sessionStartedAt,
+          });
+          return;
+        }
+
+        if (cmd === "t") {
+          void printStats().catch((err: unknown) => {
+            console.error(
+              "\n[myna] Could not collect resource statistics:",
+              err instanceof Error ? err.message : String(err),
+            );
+          });
+          return;
+        }
+
+        if (cmd === "p") {
+          printPeers([...activePeers.keys()]);
+          return;
+        }
+
+        if (cmd === "l") {
+          printDiagnostics({
+            backend: session.backend,
+            signalingUrl: signalWsUrl,
+          });
           return;
         }
 
