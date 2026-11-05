@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { PiGithubLogo } from "react-icons/pi";
 import { DiscoverButton } from "@/components/block/discover-button";
+import { GiEgyptianBird } from "react-icons/gi";
 
 
 const navLinks = [
@@ -96,9 +97,6 @@ export function Footer() {
             href="#product"
             className="inline-flex w-fit items-center gap-2 text-lg font-bold tracking-tight text-neutral-950 transition-opacity hover:opacity-75"
           >
-            <span className="flex size-8 items-center justify-center rounded-full bg-neutral-950 text-lime-300">
-              <Terminal className="size-4" />
-            </span>
             MYNA
           </a>
 

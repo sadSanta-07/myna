@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X, ArrowUpRight, Terminal } from "lucide-react";
 import { PiGithubLogo } from "react-icons/pi";
+import { GiEgyptianBird } from "react-icons/gi";
+
 
 
 const NAV_LINKS = [
@@ -37,7 +39,7 @@ export default function Navbar() {
         }
       },
       {
-        rootMargin: "-15% 0px -65% 0px",
+        rootMargin: "-15% 0px -60% 0px",
         threshold: 0,
       },
     );
@@ -61,7 +63,7 @@ export default function Navbar() {
     <header className="fixed inset-x-0 top-5 z-50 flex justify-center px-4 sm:top-7">
       <nav
         aria-label="Main navigation"
-        className="relative flex h-14 w-full max-w-5xl items-center justify-between rounded-full border border-black/8 bg-white/80 px-4 text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-4xl sm:px-5"
+        className="relative flex h-14 w-full max-w-2xl items-center justify-between rounded-full border border-black/8 bg-white/80 px-4 text-foreground shadow-[0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur-4xl sm:px-5"
       >
         {/* Brand */}
         <Link
@@ -78,7 +80,7 @@ export default function Navbar() {
               sizes="80px"
               className="object-cover"
             /> */}
-            <Terminal className="size-4" />
+        
 
           <span className="font-brand text-lg tracking-wide">
             MYNA

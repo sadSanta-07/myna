@@ -1,11 +1,18 @@
 {
-  "name": "myna-cli",
+  "name": "@sadsanta-07/myna-cli",
   "version": "1.1.2",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "myna": "dist/bin/myna.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sadSanta-07/myna.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "files": [
     "dist",

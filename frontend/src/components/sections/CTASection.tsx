@@ -2,6 +2,7 @@
 
 import { ArrowRight, ArrowUpRight, Check, Copy, GitPullRequest, Network, ShieldCheck, Terminal } from "lucide-react";
 import { useState } from "react";
+import { GiEgyptianBird } from "react-icons/gi";
 
 const INSTALL_COMMAND = "npm install -g myna-cli";
 
@@ -27,7 +28,7 @@ export default function CTASection() {
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3.5 py-2 shadow-sm">
             <span className="flex size-7 items-center justify-center rounded-full bg-lime-100 text-lime-800">
-              <Terminal className="size-4" />
+              <GiEgyptianBird  className="size-4" />
             </span>
             <span className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-neutral-600 sm:text-xs">
               MYNA · Open-source terminal sharing
