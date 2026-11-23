@@ -26,11 +26,7 @@ import { DiscoverButton } from "@/components/block/discover-button";
 
 const INSTALL_COMMAND = "npm install -g myna-cli";
 const ROOM_CODE = "93d58750.fd67220e0be9827b";
-<<<<<<< HEAD
 const SHARE_LINK = `https://myna-cloudflare-signal.miau.workers.dev/#${ROOM_CODE}`;
-=======
-const SHARE_LINK = `https://myna-cloudflare-signal.iffcogc34.workers.dev/#${ROOM_CODE}`;
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
 
 type ViewMode = "split" | "host" | "guest";
 type HandshakeStep = 0 | 1 | 2 | 3;
@@ -391,11 +387,7 @@ export default function Hero() {
                       <div className="flex items-center gap-2">
                         <Terminal className="size-3.5 text-[#bbf451]" />
                         <span className="font-mono text-xs text-neutral-300">
-<<<<<<< HEAD
                           PS C:\Users\miau&gt; myna up
-=======
-                          PS C:\Users\iffco&gt; myna up
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
                         </span>
                       </div>
                       <span className="rounded bg-white/[0.06] px-2 py-0.5 font-sans text-[11px] font-medium text-neutral-400">
@@ -407,11 +399,7 @@ export default function Hero() {
                     <div className="min-h-[520px] overflow-x-auto p-4 sm:p-6 text-xs leading-relaxed text-neutral-300">
                       {/* Prompt */}
                       <p className="font-mono text-neutral-400">
-<<<<<<< HEAD
                         <span className="text-neutral-500">PS C:\Users\miau&gt; </span>
-=======
-                        <span className="text-neutral-500">PS C:\Users\iffco&gt; </span>
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
                         <span className="text-white font-bold">myna up</span>
                       </p>
 
@@ -457,11 +445,7 @@ export default function Hero() {
                       <p className="font-mono text-[#4ade80]">
                         [myna] Starting native P2P shell session...
                       </p>
-<<<<<<< HEAD
                       <p className="font-mono text-neutral-500 mb-3">PS C:\Users\miau&gt;</p>
-=======
-                      <p className="font-mono text-neutral-500 mb-3">PS C:\Users\iffco&gt;</p>
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
 
                       {/* Session Box (Exact border & content from Image 0) */}
                       <div className="rounded-xl border border-[#22c55e]/40 bg-[#0d140e]/60 p-4 shadow-sm backdrop-blur-sm">
@@ -655,11 +639,7 @@ export default function Hero() {
 
                       {/* Cursor */}
                       <div className="mt-4 flex items-center gap-1.5 text-[#4ade80] font-mono">
-<<<<<<< HEAD
                         <span>PS C:\Users\miau&gt;</span>
-=======
-                        <span>PS C:\Users\iffco&gt;</span>
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
                         <span className="inline-block h-3.5 w-1.5 bg-[#4ade80] animate-terminal-blink" />
                       </div>
                     </div>
@@ -680,11 +660,7 @@ export default function Hero() {
                         </div>
                         <div className="flex-1 truncate rounded-md bg-black/60 px-3 py-1 font-mono text-xs text-neutral-300 border border-white/5">
                           <span className="text-neutral-500">https://</span>
-<<<<<<< HEAD
                           myna-cloudflare-signal.miau.workers.dev
-=======
-                          myna-cloudflare-signal.iffcogc34.workers.dev
->>>>>>> e26c52054853f757b35a84603088443103d0f08d
                           <span className="text-[#bbf451]">/#93d58750...</span>
                         </div>
                       </div>
